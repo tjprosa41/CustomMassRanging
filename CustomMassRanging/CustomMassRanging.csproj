@@ -1,0 +1,59 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>net6.0-windows7.0</TargetFramework>
+		<UseWPF>true</UseWPF>
+		<Platforms>x64</Platforms>
+		<Nullable>enable</Nullable>
+		<EnableDynamicLoading>true</EnableDynamicLoading>
+		<RuntimeIdentifier>win10-x64</RuntimeIdentifier>
+		<SelfContained>false</SelfContained>
+		<AssemblyName>CustomMassRanging</AssemblyName>
+	</PropertyGroup>
+
+	<PropertyGroup Label="Direct Output" Condition="'$(Configuration)' == 'Debug'">
+		<OutputPath>$(LOCALAPPDATA)\CAMECA\IVAS\Extensions\$(AssemblyName)</OutputPath>
+		<AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+		<AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+	</PropertyGroup>
+
+	<PropertyGroup Label="Package">
+		<Title>CustomMassRanging</Title>
+		<Authors>Ty Prosa</Authors>
+		<Description>Custom mass ranging from Si isotope paper</Description>
+		<Copyright>Copyright © Ty Prosa 2025 All rights reserved.</Copyright>
+		<PublishRepositoryUrl>true</PublishRepositoryUrl>
+		<EmbedUntrackedSources>true</EmbedUntrackedSources>
+		<IncludeSymbols>true</IncludeSymbols>
+		<SymbolPackageFormat>snupkg</SymbolPackageFormat>
+		<IncludeBuildOutput>true</IncludeBuildOutput>
+		<NuspecFile>CustomMassRanging.nuspec</NuspecFile>
+	</PropertyGroup>
+
+	<ItemGroup Label="Package Dependencies">
+		<PackageReference Include="Cameca.CustomAnalysis.Utilities" Version="3.7.0-beta.0" />
+	</ItemGroup>
+
+	<ItemGroup>
+	</ItemGroup>
+
+	<!-- Nuspec Initiaization and Configuration -->
+	<Target Name="InitializeStandardNuspecProperties" BeforeTargets="GenerateNuspec" Condition="'$(IsPackable)' == 'true'">
+		<PropertyGroup Condition="'$(NuspecFile)' != '' and '$(NuspecProperties)' == ''">
+			<NuspecProperties>
+				id=$(AssemblyName);
+				version=$(Version);
+				authors=$(Authors);
+				description=$(Description);
+				title=$(Title);
+				copyright=$(Copyright);
+				repoType=$(RepositoryType);
+				repoUrl=$(RepositoryUrl);
+				projectUrl=$(RepositoryUrl);
+				repoCommit=$(RepositoryCommit);
+				tfw=$(TargetFramework);
+				outDir=$(MSBuildThisFileDirectory)$(OutputPath)
+			</NuspecProperties>
+		</PropertyGroup>
+	</Target>
+</Project>
