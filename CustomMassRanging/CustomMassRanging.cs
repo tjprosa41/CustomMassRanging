@@ -27,9 +27,9 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
     
     public ObservableCollection<IRenderData> HistogramData { get; } = new();
     public ObservableCollection<DisplayRangesTable> RangesTable { get; } = new();
-    public Vector2[]? values;
+    public MyValues2? values;
     public List<IonTypeInfoRange> newRanges = new List<IonTypeInfoRange>();
-    public double minFraction = 0.01;
+    //public double minFraction = 0.01;
 
     // Bound to the PropertyGrid
     public Parameters Parameters { get; } = new();
@@ -82,19 +82,6 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
             return false;
         }
 
-        // Get the current ranges
-        var currentRanges = rangeManger.GetIonRanges();
-
-        //I'm thinking I can mode currentRanges with the new values??
-
-        // Add the current ranges to the table rows binding to be displayed in the view
-        //RangesTable.AddRange(currentRanges);
-        foreach ( var range in currentRanges)
-        {
-            DisplayRangesTable displayRangesTable = new(range);
-            RangesTable.Add(displayRangesTable);
-        }
-
         // Example of getting the mass spectrum data
         var massHist = Resources.GetMassSpectrum()?.GetData<IMassSpectrumData>()?.MassHistogram;
 
@@ -143,14 +130,26 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
             }
            
             int j = Properties.ISpectrumCoarsenFactor; 
-            float xShift = j > 1 ? (j / 2.0f) : 0.0f;
+            double xShift = j > 1 ? (j / 2.0d) : 0.0d;
             int valuesLength = massHist.Values.Length == 0 ? 0 : (massHist.Values.Length-1) / j + 1;
-            values = new Vector2[valuesLength];
+            values = new MyValues2(valuesLength, (float)massHist.Start, (float)massHist.BinWidth*(float)j );
             for (int i = 0; i < massHist.Values.Length; i+=j)
             {
                 float tempTotal = 0;
                 for (int k = 0; k < j && i + k < massHist.Values.Length; k++) tempTotal += (float)massHist.Values.Span[i + k];
-                values[i/j] = new Vector2((float)(massHist.Start + (i + xShift) * massHist.BinWidth), tempTotal);
+                values.Values[i/j].X = (float)(massHist.Start + ((double)i + xShift) * massHist.BinWidth);
+                values.Values[i/j].Y = tempTotal;
+            }
+
+            // Get the current ranges
+            var currentRanges = rangeManger.GetIonRanges();
+
+            // Add the current ranges to the table rows binding to be displayed in the view
+            foreach (var range in currentRanges)
+            {
+                DisplayRangesTable displayRangesTable = new(range);
+                RangesTable.Add(displayRangesTable);
+                RangesTable.Last().Pos = values.FindLocalMax(range.Min, range.Max);
             }
 
             // Show ranges
@@ -170,7 +169,7 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
 
             // Create the histogram data to be added to the chart in the view
             var histogramRenderData = Resources.ChartObjects
-                .CreateHistogram(values, Colors.Black, verticalSlices: rangesDisplay, name: "Mass Spectrum");
+                .CreateHistogram(values.Values, Colors.Black, verticalSlices: rangesDisplay, name: "Mass Spectrum");
             // Adding to the HistogramData ObservableCollection notifies the bound Chart2D in the view to update with the plot data
             HistogramData.Add(histogramRenderData);
         }
@@ -185,6 +184,8 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
     [RelayCommand]
     public async Task ApplyRangeChanges()
     {
+        await Task.Yield();
+
         // Check that we have a valid RangeManager (an analysis set with no mass spectrum node will return a null range manager)
         if (Resources.RangeManager is not { } rangeManger)
         {
@@ -195,7 +196,56 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
                 MessageBoxImage.Error);
             return;
         }
+        
+        /*
+        var MinSortedRangesTable = RangesTable.OrderBy(o => o.Min).ToList();
 
+        var first = MinSortedRangesTable.FirstOrDefault();
+        var last = MinSortedRangesTable.LastOrDefault();
+        List<RangeScheme> schemes = new List<RangeScheme>();
+        int rangesCount = MinSortedRangesTable.Count();
+        if (rangesCount == 1)
+            schemes.Add(RangeScheme.Left);
+        else if (rangesCount == 2)
+        {
+            schemes.Add(RangeScheme.Left);
+            var diff = MinSortedRangesTable[1].Min - MinSortedRangesTable[0].Min;
+            if ( diff > 5.0d )
+                schemes.Add(RangeScheme.Left);
+            else if ( diff > 0.9d )
+                schemes.Add(RangeScheme.Half);
+            else
+                schemes.Add(RangeScheme.Quarter);
+        }
+        else
+        {
+
+        }
+
+        foreach (var range in MinSortedRangesTable)
+        {
+            //Find max pos and max bin for each (use to determine nearest neighbor)
+            //If no peak to the left for LeftDa, then use left_range - 0
+            //If no peak within +-0.9 Da, then half_range - 1
+            //Otherwise quarter_range - 2
+            //Could do this before apply and list them with ranges...
+            if (range.Equals(first))
+            {
+                var previous = range;
+                schemes.Add(RangeScheme.Left);
+            }
+            else if (range.Equals(last))
+            {
+
+            }
+            else
+            {
+
+            }
+        }
+        */
+
+        /*
         // Example of adding some ranges
         if (Resources.ElementData?.Elements is { } elements)
         {
@@ -209,8 +259,10 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
             // Set the ranges
             await Resources.RangeManager.SetIonRanges(newRanges);
         }
+        */
     }
 
+    /*
     private List<IonTypeInfoRange> CreateRanges(string name)
     {
         var elements = Resources.ElementData?.Elements ?? throw new InvalidOperationException("Could not resolve element data");
@@ -242,6 +294,7 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
 
         return returnRanges;
     }
+    */
 }
 
 public class DisplayVariablesTable
@@ -278,6 +331,10 @@ public class DisplayRangesTable : IonTypeInfoRange
     [Display(Name = "Ion", AutoGenerateField = true, Description = "Ion Name", GroupName = "Ranges")]
     public new string Name { get => base.Name; }
 
+    [Display(Name = "Peak (Da)", AutoGenerateField = true, Description = "Peak Position (Da)", GroupName = "Ranges")]
+    [DisplayFormat(DataFormatString = "n3")]
+    public double Pos { get; set; } = 0.0d;
+
     public new IonFormula Formula { get => base.Formula; }
 
     [Display(Name = "Volume (nm^3)", AutoGenerateField = true, Description = "Ionic Volume from Range Manager", GroupName = "Ranges")]
@@ -303,4 +360,55 @@ public class DisplayRangesTable : IonTypeInfoRange
     : base(ionTypeInfoRange.Name, ionTypeInfoRange.Formula, ionTypeInfoRange.Volume, ionTypeInfoRange.Min, ionTypeInfoRange.Max, ionTypeInfoRange.Color)
     {
     }
+}
+
+public enum RangeScheme
+{
+    Left,
+    Half,
+    Quarter
+}
+
+public class MyValues2
+{
+    public Vector2[]? Values;
+    public int Length;
+    public float StartPos;
+    public float BinWidth;
+
+    public MyValues2(int length, float startPos, float binWidth)
+    {
+        Values = new Vector2[length];
+        Length = length;
+        StartPos = startPos;
+        BinWidth = binWidth;
+    }
+
+    public float GetPos(int index)
+    {
+        return (StartPos + (float)index * BinWidth);
+    }
+
+    public int GetIndex(float pos)
+    {
+        return (int)Math.Round((pos - StartPos) / BinWidth);
+    }
+
+    public float FindLocalMax(double min, double max)
+    {
+        int start = GetIndex((float)min);
+        int stop = GetIndex((float)max);
+        float maxValue = 0.0f;
+        float maxPos = 0.0f;
+        for (int i=start; i<=stop; i++)
+        {
+            if (Values[i].Y > maxValue)
+            {
+                maxValue = Values[i].Y;
+                maxPos = Values[i].X;
+            }
+        }
+        return maxPos;
+    }
+
 }
