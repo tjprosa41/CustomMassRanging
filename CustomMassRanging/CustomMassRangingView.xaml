@@ -33,7 +33,8 @@
             <Grid.ColumnDefinitions>
                 <!--Star sizing is proportional to the total sum - here the first (left) column will take 2/3 of the width,was 2* and *-->
                 <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="400" />
+                <ColumnDefinition Width="200" />
+                <ColumnDefinition Width="200" />
             </Grid.ColumnDefinitions>
 
             <controls:Chart2D x:Name="MassHistogramChart2D"
@@ -49,18 +50,27 @@
                             AutoWidth="True"
                             Grid.Row="0"
                             Grid.Column="1"
+                            Grid.ColumnSpan="2"
                             ItemsSource="{Binding RangesTable}" />
 
                 <controls:PropertyGrid 
                             Grid.Row="1"
                             Grid.Column="1"
+                            Grid.ColumnSpan="2"
                             SelectedObject="{Binding Parameters}" />
+
+            <Button x:Name="Rerange"
+                    Grid.Row="2"
+                    Grid.Column="1"
+                    Content="Rerange"
+                    Width="50" Height="24" Padding="1"
+                    Command="{Binding RerangeCommand}" />
 
             <Button x:Name="Apply"
                     Grid.Row="2"
-                    Grid.Column="1"
-                    Content="Determine Ranges"
-                    Width="40" Height="24" Padding="1"
+                    Grid.Column="2"
+                    Content="Apply"
+                    Width="50" Height="24" Padding="1"
                     Command="{Binding ApplyRangeChangesCommand}" />
 
             <GridSplitter Grid.Column="1" 

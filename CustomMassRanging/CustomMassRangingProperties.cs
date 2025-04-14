@@ -62,6 +62,7 @@ public partial class CustomMassRangingProperties : ObservableObject
         DLeftRangeCriteria = parameters.DLeftRangeCriteria;
         BUseFixedRangingWidth = parameters.BUseFixedRangingWidth;
     }
+
     public Parameters CopyPropertiesObservablesToParametersObservables()
     {
         Parameters copy = new();
@@ -129,41 +130,7 @@ public partial class Parameters : ObservableObject
     [field: Display(Name = "Enum Property (type ExampleEnum)", GroupName = "Parameters (also Properties)")]
     private ExampleEnum parameter4;
     */
-    /*
-    Parameters()
-    {
-        sMaxPeakName = Properties.sMaxPeakName;
-        dMaxPeakPosition = Properties.dMaxPeakPosition;
-        dMaxPeakFWHunM = Properties.dMaxPeakFWHunM;
-        dMaxPeakMRP = Properties.dMaxPeakMRP;
-        iSpectrumCoarsenFactor = Properties.iSpectrumCoarsenFactor;
-        dRangingWidthFactor = Properties.dRangingWidthFactor;
-        bUseFixedRangingWidth = Properties.bUseFixedRangingWidth;
-    }
-    public Parameters()
-    {
-    }
-    public Parameters(Parameters parameters)
-    {
-        sMaxPeakName = parameters.sMaxPeakName;
-        dMaxPeakPosition = parameters.dMaxPeakPosition;
-        dMaxPeakFWHunM = parameters.dMaxPeakFWHunM;
-        dMaxPeakMRP = parameters.dMaxPeakMRP;
-        iSpectrumCoarsenFactor = parameters.iSpectrumCoarsenFactor;
-        dRangingWidthFactor = parameters.dRangingWidthFactor;
-        bUseFixedRangingWidth = parameters.bUseFixedRangingWidth;
-    }
-    public Parameters(CustomMassRangingProperties properties)
-    {
-        sMaxPeakName = properties.sMaxPeakName;
-        dMaxPeakPosition = properties.dMaxPeakPosition;
-        dMaxPeakFWHunM = properties.dMaxPeakFWHunM;
-        dMaxPeakMRP = properties.dMaxPeakMRP;
-        iSpectrumCoarsenFactor = properties.iSpectrumCoarsenFactor;
-        dRangingWidthFactor = properties.dRangingWidthFactor;
-        bUseFixedRangingWidth = properties.bUseFixedRangingWidth;
-    }
-    */
+
     public void ResetParametersObservablesToPropertiesObservables(CustomMassRangingProperties properties)
     {
         //Caps are the Observable versions

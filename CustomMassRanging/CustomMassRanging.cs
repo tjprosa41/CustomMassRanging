@@ -19,6 +19,7 @@ using System.Reflection;
 using System.Windows.Documents;
 using System.Reflection.Emit;
 using System.Windows.Media.Media3D;
+using System.Collections;
 
 /// CustomMassRanging
 /// 
@@ -175,6 +176,18 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
                 .Select(r => (IChart2DSlice)(new Chart2DSlice((float)r.Min, (float)r.Max, r.Color)))
                 .ToList();
 
+            /*
+            // Get the current ranges
+            var currentRanges = rangeManager.GetIonRanges()
+                .Select(x => new DisplayRangesTable 
+                {
+                    Name = x.Name,
+                    Volume = x.Volume,
+                    Min = x.Min,
+                    Max = x.Max,
+                });
+            */
+
             // Create the histogram data to be added to the chart in the view
             var histogramRenderData = Resources.ChartObjects
                 .CreateHistogram(values.Values, Colors.Black, verticalSlices: rangesDisplay, name: "Mass Spectrum");
@@ -191,6 +204,53 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
 
         // Return true as the update completed successfully and the data state of the analysis should be considered valid
         return true;
+    }
+
+    // A RerangeCommand property is generated that can be used to bind this action to the view
+    [RelayCommand]
+    public async Task Rerange()
+    {
+        await Task.Yield();
+
+        // Check that we have a valid RangeManager (an analysis set with no mass spectrum node will return a null range manager)
+        if (Resources.RangeManager is not { } rangeManager)
+        {
+            MessageBox.Show(
+                "This analysis requires a Mass Spectrum to be present to apply modified ranges",
+                "Custom Analysis Error",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+            return;
+        }
+
+        var MinSortedRangesTable = RangesTable.OrderBy(o => o.Pos).ToList();
+
+        // Check that there is at least 1 existing range
+        if (MinSortedRangesTable.Count() < 1)
+        {
+            MessageBox.Show(
+                "No ranges defined in original node.  Current implimentation modifies _existing_ range definitions.",
+                "Custom Analysis Error",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+            return;
+        }
+
+        DetermineNewRanges(MinSortedRangesTable);
+
+        // Show ranges
+        var rangesDisplay = RangesTable
+            .Select(r => (IChart2DSlice)(new Chart2DSlice((float)r.Min, (float)r.Max, r.Color)))
+            .ToList();
+
+        HistogramData.Clear();
+
+        // Create the histogram data to be added to the chart in the view
+        var histogramRenderData = Resources.ChartObjects
+            .CreateHistogram(values?.Values, Colors.Black, verticalSlices: rangesDisplay, name: "Mass Spectrum");
+
+        // Adding to the HistogramData ObservableCollection notifies the bound Chart2D in the view to update with the plot data
+        HistogramData.Add(histogramRenderData);
     }
 
     // An ApplyRangeChangesCommand property is generated that can be used to bind this action to the view
@@ -210,81 +270,14 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
             return;
         }
 
-        var MinSortedRangesTable = RangesTable.OrderBy(o => o.Pos).ToList();
-        var nList = MinSortedRangesTable.Count();
-
-        // Check that there is at least 1 existing range
-        if (nList < 1)
-        {
-            MessageBox.Show(
-                "No ranges defined in original node.  Current implimentation modifies _existing_ range definitions.",
-                "Custom Analysis Error",
-                MessageBoxButton.OK,
-                MessageBoxImage.Error);
-            return;
-        }
-
-        //List is sorted by Pos
-        double leftDistance = MinSortedRangesTable[0].Pos - values?.StartPos ?? double.NaN;
-        double rightDistance = 0.0d;
-        if (nList > 1)
-        {
-            rightDistance = MinSortedRangesTable[1].Pos - MinSortedRangesTable[0].Pos;
-            MinSortedRangesTable[0].Scheme = Scheme.DetermineRangeScheme(leftDistance, rightDistance, Parameters.dLeftRangeCriteria);
-
-            leftDistance = MinSortedRangesTable[nList - 1].Pos - MinSortedRangesTable[nList - 2].Pos; ;
-            rightDistance = values?.Values.Last().X ?? double.NaN - MinSortedRangesTable[nList - 1].Pos;
-            MinSortedRangesTable[nList-1].Scheme = Scheme.DetermineRangeScheme(leftDistance, rightDistance, Parameters.dLeftRangeCriteria);
-        }
-        
-        for (int i=1; i<nList-1; i++) 
-        {
-            leftDistance = MinSortedRangesTable[i].Pos - MinSortedRangesTable[i - 1].Pos; ;
-            rightDistance = MinSortedRangesTable[i+1].Pos - MinSortedRangesTable[i].Pos;
-            MinSortedRangesTable[i].Scheme = Scheme.DetermineRangeScheme(leftDistance, rightDistance, Parameters.dLeftRangeCriteria);
-        }
-
-        RangesTable.Clear();
-        for (int i=0; i<nList; i++)
-        {
-            float left = (float)MinSortedRangesTable[i].Min;
-            float right = (float)MinSortedRangesTable[i].Max;
-            double netMax = 0.0d;
-            double raw = 0.0d; ;
-            values?.DetermineRange((float)MinSortedRangesTable[i].Pos, MinSortedRangesTable[i].Scheme, Parameters, ref left, ref right, ref netMax, ref raw);
-            DisplayRangesTable newSortedRangesTable = new(MinSortedRangesTable[i].Name, MinSortedRangesTable[i].Pos, netMax, raw, MinSortedRangesTable[i].Formula,
-                MinSortedRangesTable[i].Volume, (double)left, (double)right, MinSortedRangesTable[i].Scheme, MinSortedRangesTable[i].Color);
-
-            RangesTable.Add(newSortedRangesTable);
-        }
-
-        // Show ranges
-        var rangesDisplay = RangesTable
-            .Select(r => (IChart2DSlice)(new Chart2DSlice((float)r.Min, (float)r.Max, r.Color)))
-            .ToList();
-
-        HistogramData.Clear();
-        // Create the histogram data to be added to the chart in the view
-        var histogramRenderData = Resources.ChartObjects
-            .CreateHistogram(values?.Values, Colors.Black, verticalSlices: rangesDisplay, name: "Mass Spectrum");
-        // Adding to the HistogramData ObservableCollection notifies the bound Chart2D in the view to update with the plot data
-        HistogramData.Add(histogramRenderData);
-
-        /*
-        List<IonTypeInfoRange> ionRanges = new();
-        foreach (IonTypeInfoRange range in RangesTable)
-            ionRanges.Add(new IonTypeInfoRange(range.Name, range.Formula, range.Volume, range.Min, range.Max, range.Color));
-        */
-
         var existingRanges = rangeManager.GetIonRanges();
         IonTypeInfoRange[] ionRanges = new IonTypeInfoRange[existingRanges.Count()];
 
         int ii = 0;
         foreach (IonTypeInfoRange range in RangesTable)
-        {
             ionRanges[ii++] = range;
-            //if (ii >= nRanges) break;
-        }
+
+        Properties.UpdatePropertiesObservablesToParametersObservables(Parameters);
 
         // Set the ranges
         await Resources.RangeManager.SetIonRanges(ionRanges);
@@ -350,18 +343,6 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
 
     private void StartCustomMassRangesTable(IMassSpectrumRangeManager rangeManager)
     {
-        /*
-        // Get the current ranges
-        var currentRanges = rangeManager.GetIonRanges()
-            .Select(x => new DisplayRangesTable 
-            {
-                Name = x.Name,
-                Volume = x.Volume,
-                Min = x.Min,
-                Max = x.Max,
-            });
-        */
-
         // Get the current ranges
         var currentRanges = rangeManager.GetIonRanges();
 
@@ -382,6 +363,45 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
                 Properties.SMaxPeakName = range.Name;
                 break;
             }
+        }
+    }
+
+    private void DetermineNewRanges(List<DisplayRangesTable> MinSortedRangesTable)
+    {
+        var nList = MinSortedRangesTable.Count();
+
+        //List is sorted by Pos
+        double leftDistance = MinSortedRangesTable[0].Pos - values?.StartPos ?? double.NaN;
+        double rightDistance = 0.0d;
+        if (nList > 1)
+        {
+            rightDistance = MinSortedRangesTable[1].Pos - MinSortedRangesTable[0].Pos;
+            MinSortedRangesTable[0].Scheme = Scheme.DetermineRangeScheme(leftDistance, rightDistance, Parameters.dLeftRangeCriteria);
+
+            leftDistance = MinSortedRangesTable[nList - 1].Pos - MinSortedRangesTable[nList - 2].Pos; ;
+            rightDistance = values?.Values.Last().X ?? double.NaN - MinSortedRangesTable[nList - 1].Pos;
+            MinSortedRangesTable[nList - 1].Scheme = Scheme.DetermineRangeScheme(leftDistance, rightDistance, Parameters.dLeftRangeCriteria);
+        }
+
+        for (int i = 1; i < nList - 1; i++)
+        {
+            leftDistance = MinSortedRangesTable[i].Pos - MinSortedRangesTable[i - 1].Pos; ;
+            rightDistance = MinSortedRangesTable[i + 1].Pos - MinSortedRangesTable[i].Pos;
+            MinSortedRangesTable[i].Scheme = Scheme.DetermineRangeScheme(leftDistance, rightDistance, Parameters.dLeftRangeCriteria);
+        }
+
+        RangesTable.Clear();
+        for (int i = 0; i < nList; i++)
+        {
+            float left = (float)MinSortedRangesTable[i].Min;
+            float right = (float)MinSortedRangesTable[i].Max;
+            double netMax = 0.0d;
+            double raw = 0.0d; ;
+            values?.DetermineRange((float)MinSortedRangesTable[i].Pos, MinSortedRangesTable[i].Scheme, Parameters, ref left, ref right, ref netMax, ref raw);
+            DisplayRangesTable newSortedRangesTable = new(MinSortedRangesTable[i].Name, MinSortedRangesTable[i].Pos, netMax, raw, MinSortedRangesTable[i].Formula,
+                MinSortedRangesTable[i].Volume, (double)left, (double)right, MinSortedRangesTable[i].Scheme, MinSortedRangesTable[i].Color);
+
+            RangesTable.Add(newSortedRangesTable);
         }
     }
 }
