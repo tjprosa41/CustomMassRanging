@@ -51,15 +51,15 @@
                             Grid.Column="1"
                             ItemsSource="{Binding RangesTable}" />
 
-            <controls:PropertyGrid 
+                <controls:PropertyGrid 
                             Grid.Row="1"
                             Grid.Column="1"
                             SelectedObject="{Binding Parameters}" />
 
-            <Button x:Name="ExampleActionButton"
+            <Button x:Name="Apply"
                     Grid.Row="2"
                     Grid.Column="1"
-                    Content="Apply Modified Ranges"
+                    Content="Determine Ranges"
                     Width="40" Height="24" Padding="1"
                     Command="{Binding ApplyRangeChangesCommand}" />
 

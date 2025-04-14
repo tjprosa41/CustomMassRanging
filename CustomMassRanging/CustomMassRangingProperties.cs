@@ -19,11 +19,12 @@ public partial class CustomMassRangingProperties : ObservableObject
     [ObservableProperty]
     public double dMaxPeakPosition = -1.0d;
 
-    [field: Display(Name = "Max Peak FWHM (Da)")]
+    [field: Display(Name = "Max Peak FWHunM (Da)")]
     [ObservableProperty]
-    public double dMaxPeakFWHM = -1.0d;
+    public double dMaxPeakFWHunM = -1.0d;
 
     [field: Display(Name = "Max Peak MRP")]
+    [field: DisplayFormat(DataFormatString = "n1")]
     [ObservableProperty]
     public double dMaxPeakMRP = -1.0d;
 
@@ -31,27 +32,34 @@ public partial class CustomMassRangingProperties : ObservableObject
     [ObservableProperty]
     public int iSpectrumCoarsenFactor = -1;
 
-    [field: Display(Name = "Ranging Width Factor")]
+    [field: Display(Name = "Fixed Ranging Width Factor")]
     [ObservableProperty]
-    public double dRangingWidthFactor = 1.4d;
+    public double dRangingWidthFactor = 2.5d;
+
+    [field: Display(Name = "Min Width Factor")]
+    [ObservableProperty]
+    public double dMinWidthFactor = 1.0d;
+
+    [field: Display(Name = "Left Range Criteria")]
+    [ObservableProperty]
+    public double dLeftRangeCriteria = 5.0d;
 
     [field: Display(Name = "Use Fixed Ranging Width")]
     [ObservableProperty]
     public bool bUseFixedRangingWidth = false;
 
-    //First lettter needs to be lower case for Observable because capital case version is generate
-    [field: Display(Name = "RangeOffset")]
-    [ObservableProperty]
-    public double rangeOffset = 0.2d;
+    //First lettter needs to be lower case for Observable because capital case version is generated
 
     public void UpdatePropertiesObservablesToParametersObservables(Parameters parameters)
     {
         SMaxPeakName = parameters.SMaxPeakName;
         DMaxPeakPosition = parameters.DMaxPeakPosition;
-        DMaxPeakFWHM = parameters.DMaxPeakFWHM;
+        DMaxPeakFWHunM = parameters.DMaxPeakFWHunM;
         DMaxPeakMRP = parameters.DMaxPeakMRP;
         ISpectrumCoarsenFactor = parameters.ISpectrumCoarsenFactor;
         DRangingWidthFactor = parameters.DRangingWidthFactor;
+        DMinWidthFactor = parameters.DMinWidthFactor;
+        DLeftRangeCriteria = parameters.DLeftRangeCriteria;
         BUseFixedRangingWidth = parameters.BUseFixedRangingWidth;
     }
     public Parameters CopyPropertiesObservablesToParametersObservables()
@@ -59,10 +67,12 @@ public partial class CustomMassRangingProperties : ObservableObject
         Parameters copy = new();
         copy.SMaxPeakName = SMaxPeakName;
         copy.DMaxPeakPosition = DMaxPeakPosition;
-        copy.DMaxPeakFWHM = DMaxPeakFWHM;
+        copy.DMaxPeakFWHunM = DMaxPeakFWHunM;
         copy.DMaxPeakMRP = DMaxPeakMRP;
         copy.ISpectrumCoarsenFactor = ISpectrumCoarsenFactor;
         copy.DRangingWidthFactor = DRangingWidthFactor;
+        copy.DMinWidthFactor = DMinWidthFactor;
+        copy.DLeftRangeCriteria = DLeftRangeCriteria;
         copy.BUseFixedRangingWidth = BUseFixedRangingWidth;
         return copy;
     }
@@ -85,11 +95,12 @@ public partial class Parameters : ObservableObject
     public double dMaxPeakPosition;
 
     [ObservableProperty]
-    [field: Display(Name = "Max Peak FWHM (Da)", Description = "Most intense peak in spectrum FWHM (Da).", GroupName = "Parameters (also Properties)")]
-    public double dMaxPeakFWHM;
+    [field: Display(Name = "Max Peak FWHunM (Da)", Description = "Most intense peak in spectrum FWHunM (Da).", GroupName = "Parameters (also Properties)")]
+    public double dMaxPeakFWHunM;
     
     [ObservableProperty]
     [field: Display(Name = "Max Peak MRP", Description = "Most intense peak in spectrum Mass Resolving Power.", GroupName = "Parameters (also Properties)")]
+    [field: DisplayFormat(DataFormatString = "n1")]
     public double dMaxPeakMRP;
 
     [ObservableProperty]
@@ -97,8 +108,16 @@ public partial class Parameters : ObservableObject
     public int iSpectrumCoarsenFactor;
 
     [ObservableProperty]
-    [field: Display(Name = "Ranging Width Factor", Description = "Set range widths to this.factor*FWHM.", GroupName = "Parameters (also Properties)")]
+    [field: Display(Name = "Ranging Width Factor", Description = "Set range widths to this.factor*FWHunM.", GroupName = "Parameters (also Properties)")]
     public double dRangingWidthFactor;
+
+    [ObservableProperty]
+    [field: Display(Name = "Min Width Factor", Description = "Set range minimum width to this.factor*FWHunM.", GroupName = "Parameters (also Properties)")]
+    public double dMinWidthFactor;
+
+    [ObservableProperty]
+    [field: Display(Name = "Left Range Criteria", Description = "Use left ranging scheme when nearest peak is farther than this to the left.", GroupName = "Parameters (also Properties)")]
+    public double dLeftRangeCriteria;
 
     [ObservableProperty]
     [field: Display(Name = "Use Fixed Ranging Width", Description = "Use same width for all ranges.", GroupName = "Parameters (also Properties)")]
@@ -115,13 +134,12 @@ public partial class Parameters : ObservableObject
     {
         sMaxPeakName = Properties.sMaxPeakName;
         dMaxPeakPosition = Properties.dMaxPeakPosition;
-        dMaxPeakFWHM = Properties.dMaxPeakFWHM;
+        dMaxPeakFWHunM = Properties.dMaxPeakFWHunM;
         dMaxPeakMRP = Properties.dMaxPeakMRP;
         iSpectrumCoarsenFactor = Properties.iSpectrumCoarsenFactor;
         dRangingWidthFactor = Properties.dRangingWidthFactor;
         bUseFixedRangingWidth = Properties.bUseFixedRangingWidth;
     }
-    */
     public Parameters()
     {
     }
@@ -129,7 +147,7 @@ public partial class Parameters : ObservableObject
     {
         sMaxPeakName = parameters.sMaxPeakName;
         dMaxPeakPosition = parameters.dMaxPeakPosition;
-        dMaxPeakFWHM = parameters.dMaxPeakFWHM;
+        dMaxPeakFWHunM = parameters.dMaxPeakFWHunM;
         dMaxPeakMRP = parameters.dMaxPeakMRP;
         iSpectrumCoarsenFactor = parameters.iSpectrumCoarsenFactor;
         dRangingWidthFactor = parameters.dRangingWidthFactor;
@@ -139,21 +157,24 @@ public partial class Parameters : ObservableObject
     {
         sMaxPeakName = properties.sMaxPeakName;
         dMaxPeakPosition = properties.dMaxPeakPosition;
-        dMaxPeakFWHM = properties.dMaxPeakFWHM;
+        dMaxPeakFWHunM = properties.dMaxPeakFWHunM;
         dMaxPeakMRP = properties.dMaxPeakMRP;
         iSpectrumCoarsenFactor = properties.iSpectrumCoarsenFactor;
         dRangingWidthFactor = properties.dRangingWidthFactor;
         bUseFixedRangingWidth = properties.bUseFixedRangingWidth;
     }
+    */
     public void ResetParametersObservablesToPropertiesObservables(CustomMassRangingProperties properties)
     {
         //Caps are the Observable versions
         SMaxPeakName = properties.SMaxPeakName;
         DMaxPeakPosition = properties.DMaxPeakPosition;
-        DMaxPeakFWHM = properties.DMaxPeakFWHM;
+        DMaxPeakFWHunM = properties.DMaxPeakFWHunM;
         DMaxPeakMRP = properties.DMaxPeakMRP;
         ISpectrumCoarsenFactor = properties.ISpectrumCoarsenFactor;
         DRangingWidthFactor = properties.DRangingWidthFactor;
+        DMinWidthFactor = properties.DMinWidthFactor;
+        DLeftRangeCriteria = properties.DLeftRangeCriteria;
         BUseFixedRangingWidth = properties.BUseFixedRangingWidth;
     }
 }
