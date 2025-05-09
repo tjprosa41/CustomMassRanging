@@ -5,6 +5,9 @@ namespace CustomMassRanging
 {
     public class CompositionTableEntries
     {
+        //Programming note:  The below was written for a standard controls:table.  This table is now a DataGrid and all the attributes are controlled in the XAML
+        //  I left in all the Display stuff as example for controls:table, but they are ingored in the actual implimentation.
+
         // Name -> Column name
         // AutoGenerateField -> If 'false', then this public property will not have a generated column in the table (default is true)
         // Description -> Tool tip text if hovering over the column

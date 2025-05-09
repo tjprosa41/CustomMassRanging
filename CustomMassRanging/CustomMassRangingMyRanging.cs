@@ -309,7 +309,6 @@ namespace CustomMassRanging
 
         public List<Vector3> FindAllPeaks(Parameters parameters)
         {
-            //These become Parameters eventually
             double Sensitivity = parameters.dSensitivity; //Needs to be >=1
             int MinBinPairs = parameters.iMinBinPairs; //Use 2X these number of bins
             int MinPeakMaxCounts = parameters.iMinPeakMaxCounts;

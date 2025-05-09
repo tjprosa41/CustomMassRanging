@@ -3,8 +3,10 @@ using System.Collections.Generic; //IEnumerable<>
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Numerics;
+using System.Reflection;
 using System.Runtime.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
@@ -17,7 +19,7 @@ using CommunityToolkit.Mvvm.Input;
 /// CustomMassRanging
 /// 
 /// Update:
-///     Start with ranges as defined in ROI
+///     Start with ranges as defined in IVAS ROI
 ///     Confirm they are non-overlapping
 ///     Find max histogram bin, determine FWHunM (FWThM was used in paper)
 ///     Use FWHunM to determine binning for display and ranging
@@ -27,26 +29,19 @@ using CommunityToolkit.Mvvm.Input;
 ///
 /// Rerange:
 ///     Following parameter values, determine new range min, max
-///     Beginning implimation is overly simple.  Any prospective "left" is implimented as 1/2-ranges
+///     Beginning implimation is overly simple
 ///     Check again for non-overlapping results
 /// 
 /// Apply:
 ///     Move values back to IVAS
-///     This change will trigger reloading (can we change this?)
+///     This change will trigger reloading
 ///     
 /// Saving...
 ///     At start, "Properties" for this extension are either
 ///         1) default from this extension, or
 ///         2) values from saved analysis state
 ///     Any change in "Properties" triggers a need to "Update" from beginning
-///     Any changes to "Parameters" are copied to "Properties" upon Apply
-///     
-/// Next (April 14, 2025):
-///     Allow user modificaiton of type of range
-///     Calculate background corrected bulk composions with errors (ionic and non-ionic)
-///     Can we do mass fraction?
-///     Modify "Update" so that it doesn't restart everyting 
-///     (easier to just make a new CustomAnalsis if that is desired)
+///     Any changes to "Parameters" are copied to "Properties" upon Apply  
 ///     
 
 namespace CustomMassRanging;
@@ -353,9 +348,15 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
     {
         await Task.Yield();
 
+        // This will resolve the path to where the extension is installed regardless of used in AP Suite/IVAS, etc.
+        string extensionDirectory = new DirectoryInfo(Assembly.GetExecutingAssembly().Location).Parent!.FullName;
+
+        // And then the full path to your PDF should be
+        string absHelpPath = Path.Join(extensionDirectory, "CustomMassRanging2.0.pdf");
+
         var processStartInfo = new ProcessStartInfo()
         {
-            FileName = "CustomMassRanging2.0.pdf",
+            FileName = absHelpPath,
             UseShellExecute = true,
         };
         Process.Start(processStartInfo);
