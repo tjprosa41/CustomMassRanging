@@ -1,25 +1,18 @@
-﻿using Cameca.CustomAnalysis.Interface;
-using Cameca.CustomAnalysis.Utilities;
-using CommunityToolkit.Mvvm.Input;
+﻿using System;
+using System.Collections.Generic; //IEnumerable<>
 using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Diagnostics;
 using System.Linq;
 using System.Numerics;
-using System;
-using System.Collections.Generic; //IEnumerable<>
+using System.Runtime.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Windows.Media;
 using System.Windows;
-using System.ComponentModel;
-using System.Xml.Linq;
-using System.Resources;
-using System.ComponentModel.DataAnnotations;
-using System.Drawing;
-using System.Reflection;
-using System.Windows.Documents;
-using System.Reflection.Emit;
-using System.Windows.Media.Media3D;
-using System.Collections;
+using System.Windows.Media;
+using Cameca.CustomAnalysis.Interface;
+using Cameca.CustomAnalysis.Utilities;
+using CommunityToolkit.Mvvm.Input;
 
 /// CustomMassRanging
 /// 
@@ -64,15 +57,21 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
     public const string UniqueId = "CustomMassRanging.CustomMassRanging";
     public static INodeDisplayInfo DisplayInfo { get; } = new NodeDisplayInfo("Custom Mass Ranging");
     public ObservableCollection<IRenderData> HistogramData { get; } = new();
+    public float MaxIntensity { get; set; } = 0.0f;
+    public float Resolution { get; set; } = 0.0f;
 
     //RangesTable is the local copy of ranges and results
-    public ObservableCollection<DisplayRangesTable> RangesTable { get; } = new();
+    public ObservableCollection<RangesTableEntries> RangesTable { get; set; } = new();
+
+    //CompositionTable can be built after RangesTable has been updated
+    public ObservableCollection<CompositionTableEntries> IonicCompositionTable { get; } = new();
+    public ObservableCollection<CompositionTableEntries> DecomposedCompositionTable { get; } = new();
 
     //values is the class that does all the processing of the coarsened mass spectrum
-    public MyCustomRanging? values;
+    public MyRanging? values;
 
     // Bound to the PropertyGrid
-    public Parameters Parameters { get; } = new();
+    public Parameters Parameters { get; set; } = new();
 
     // Add a line to the constructor to wire up the event handler to the Properties object PropertyChanged event
     public CustomMassRanging(IStandardAnalysisFilterNodeBaseServices services, ResourceFactory resourceFactory)
@@ -92,20 +91,20 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
     // Event handler called when the Parameters object has changes in one of its properties
     private void OnParametersChanged(object? sender, PropertyChangedEventArgs e)
     {
-        // if (e.PropertyName == nameof(Parameters.Property1))
-        // or similar can be used to identify which property was changed to only call code for certain parameters
-
-        // I will very often use a switch statement to run different code depending on what property changed like this
-        /*
-        switch (e.PropertyName)
+        if (e.PropertyName == nameof(Parameters.ViewportLower))
         {
-            case nameof(Parameters.Parameter1):
-                // Do something when Parameter1 changes
-                break;
-            default:
-                break;
+            Parameters.LowerX = Parameters.ViewportLower.X;
+            Parameters.LowerY = Parameters.ViewportLower.Y;
         }
-        */
+        else if (e.PropertyName == nameof(Parameters.ViewportUpper))
+        {
+            Parameters.UpperX = Parameters.ViewportUpper.X;
+            Parameters.UpperY = Parameters.ViewportUpper.Y;
+        }
+        else if (e.PropertyName == nameof(Parameters.LowerX) || e.PropertyName == nameof(Parameters.LowerY))
+            Parameters.ViewportLower = new Vector2(Parameters.LowerX, Parameters.LowerY);
+        else if (e.PropertyName == nameof(Parameters.UpperX) || e.PropertyName == nameof(Parameters.UpperY))
+            Parameters.ViewportUpper = new Vector2(Parameters.UpperX, Parameters.UpperY);
     }
 
     // The main update method
@@ -116,6 +115,8 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
         // Clear existing view data
         HistogramData.Clear();
         RangesTable.Clear();
+        IonicCompositionTable.Clear();
+        DecomposedCompositionTable.Clear();
 
         // Check that we have a valid RangeManager (an analysis set with no mass spectrum node will return a null range manager)
         if (Resources.RangeManager is not { } rangeManager)
@@ -138,7 +139,7 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
             AssessHistogramMakeValuesArray(massHist);
 
             //Check to see if histogram returned values for ranging
-            if (values is null)
+            if (values is not { })
             {
                 MessageBox.Show(
                     "No values found.",
@@ -147,60 +148,64 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
                     MessageBoxImage.Error);
                 return false;
             }
-
-            // Get the current ranges
-            var currentRanges = rangeManager.GetIonRanges();
-
-            // Check for overlapps...
-            for (int i = 0; i < currentRanges.Count(); i++)
+            else
             {
-                var range0 = currentRanges.ElementAt(i);
-                for (int j=i+1; j < currentRanges.Count(); j++)
+                for (int i = 0; i < values.Values.Length; i++)
+                    if (values.Values[i].Y > MaxIntensity) MaxIntensity = values.Values[i].Y;
+
+                //Starts in log scale, so y must be >0 (here 1 or greater)
+                if (Properties.ViewportUpper.X <= 0.0f && Properties.ViewportUpper.Y <= 1.0f)
+                    Properties.ViewportUpper = new Vector2(values.Values.Last().X, MaxIntensity);
+
+                // Get the current ranges
+                var currentRanges = rangeManager.GetIonRanges();
+
+                // Check for overlapps...
+                for (int i = 0; i < currentRanges.Count(); i++)
                 {
-                    var range = currentRanges.ElementAt(j);
-                    // No overlap
-                    if ( !(range0.Min > range.Max || range0.Max < range.Min) )
+                    var range0 = currentRanges.ElementAt(i);
+                    for (int j = i + 1; j < currentRanges.Count(); j++)
                     {
-                        MessageBox.Show(
-                            $"Range overlaps not allowed. ({range0.Min}, {range0.Max}) overlapps ({range.Min}, {range.Max}). Adjust/delete offending ranges and try again.",
-                            "Custom Analysis Error",
-                            MessageBoxButton.OK,
-                            MessageBoxImage.Error);
-                        return false;
+                        var range = currentRanges.ElementAt(j);
+                        // No overlap
+                        if (!(range0.Min > range.Max || range0.Max < range.Min))
+                        {
+                            MessageBox.Show(
+                                $"Original AP Suite allows for overlapping ranges; however, range overlaps are not allowed in this extension.\n" +
+                                $"Please fix in parent range definitions and try again. ({range0.Min:N3}, {range0.Max:N}) overlapps ({range.Min:N3}, {range.Max:N3})",
+                                "Custom Analysis Error",
+                                MessageBoxButton.OK,
+                                MessageBoxImage.Error);
+                            return false;
+                        }
                     }
                 }
+
+                // Show current ranges
+                var rangesDisplay = rangeManager.GetIonRanges()
+                    .Select(r => (IChart2DSlice)(new Chart2DSlice((float)r.Min, (float)r.Max, r.Color)))
+                    .ToList();
+
+                // Create the histogram data to be added to the chart in the view
+                var histogramRenderData = Resources.ChartObjects
+                    .CreateHistogram(values.Values, Colors.Black, verticalSlices: rangesDisplay, name: "Mass Spectrum");
+
+                // Adding to the HistogramData ObservableCollection notifies the bound Chart2D in the view to update with the plot data
+                HistogramData.Add(histogramRenderData);
             }
-
-            // Show current ranges
-            var rangesDisplay = rangeManager.GetIonRanges()
-                .Select(r => (IChart2DSlice)(new Chart2DSlice((float)r.Min, (float)r.Max, r.Color)))
-                .ToList();
-
-            /*
-            // Get the current ranges
-            var currentRanges = rangeManager.GetIonRanges()
-                .Select(x => new DisplayRangesTable 
-                {
-                    Name = x.Name,
-                    Volume = x.Volume,
-                    Min = x.Min,
-                    Max = x.Max,
-                });
-            */
-
-            // Create the histogram data to be added to the chart in the view
-            var histogramRenderData = Resources.ChartObjects
-                .CreateHistogram(values.Values, Colors.Black, verticalSlices: rangesDisplay, name: "Mass Spectrum");
-            
-            // Adding to the HistogramData ObservableCollection notifies the bound Chart2D in the view to update with the plot data
-            HistogramData.Add(histogramRenderData);
         }
 
         //Here a copy of the current ranges is made as a starting point for RangesTable
-        StartCustomMassRangesTable(rangeManager);
+        StartCustomMassRangesTable();
 
         //Properties is an enherited observable from CustomMassRangignProperties
-        Parameters.ResetParametersObservablesToPropertiesObservables(Properties); 
+        Parameters.ResetParametersObservablesToPropertiesObservables(Properties);
+
+        //Properties also may have a Saved Analysis Tree RangesTable.  Check to see if a scheme exists for any of these ranges
+        //If so, then copy scheme into RangesTable--a non-null scheme is interpreted as a user selected scheme to override auto
+        foreach (var range in RangesTable)
+            foreach (var range_item in Properties.RangesList)
+                if (range_item.Pos >= range.Min && range_item.Pos <= range.Max) range.Scheme = range_item.Scheme;
 
         // Return true as the update completed successfully and the data state of the analysis should be considered valid
         return true;
@@ -212,16 +217,10 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
     {
         await Task.Yield();
 
-        // Check that we have a valid RangeManager (an analysis set with no mass spectrum node will return a null range manager)
-        if (Resources.RangeManager is not { } rangeManager)
-        {
-            MessageBox.Show(
-                "This analysis requires a Mass Spectrum to be present to apply modified ranges",
-                "Custom Analysis Error",
-                MessageBoxButton.OK,
-                MessageBoxImage.Error);
-            return;
-        }
+        var lower = Parameters.ViewportLower;
+        var upper = Parameters.ViewportUpper;
+
+        HistogramData.Clear();
 
         var MinSortedRangesTable = RangesTable.OrderBy(o => o.Pos).ToList();
 
@@ -236,14 +235,43 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
             return;
         }
 
+        //RangesTable is modified in DetermineNewRanges
+        //Need to go from low to high m/z for our left consideration
         DetermineNewRanges(MinSortedRangesTable);
+
+        // Check for overlapps...
+        for (int i = 0; i < RangesTable.Count(); i++)
+        {
+            var range0 = RangesTable.ElementAt(i);
+            for (int j = i + 1; j < RangesTable.Count(); j++)
+            {
+                var range = RangesTable.ElementAt(j);
+                // No overlap
+                if (!(range0.Min > range.Max || range0.Max < range.Min))
+                {
+                    MessageBox.Show(
+                        $"New ranges result in at least one overlapping range. Please consider deleting ranges or modifying schemes and retrying.\n" +
+                        $"Overlapping range: ({range0.Min:N3}, {range0.Max:N3}) overlapps ({range.Min:N3}, {range.Max:N3})",
+                        "Custom Analysis Error",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Error);
+                    return;
+                }
+            }
+        }
+
+        AddAnyTailEstimates();
+
+        IonicCompositionTable.Clear();
+        CreateIonicCompositionTable();
+
+        DecomposedCompositionTable.Clear();
+        CreateDecomposedCompositionTable();
 
         // Show ranges
         var rangesDisplay = RangesTable
             .Select(r => (IChart2DSlice)(new Chart2DSlice((float)r.Min, (float)r.Max, r.Color)))
             .ToList();
-
-        HistogramData.Clear();
 
         // Create the histogram data to be added to the chart in the view
         var histogramRenderData = Resources.ChartObjects
@@ -251,6 +279,41 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
 
         // Adding to the HistogramData ObservableCollection notifies the bound Chart2D in the view to update with the plot data
         HistogramData.Add(histogramRenderData);
+
+        // Adding line segments for each range
+        if (values is not { })
+        {
+            foreach (var range in RangesTable)
+            {
+                //Scale of line height depends on binning
+                for (int i = 0; i < range.LineCoordinates.Length; i++)
+                    range.LineCoordinates[i].Z *= values!.BinWidth;
+
+                var histogramRenderData2 = Resources.ChartObjects.CreateLine(range.LineCoordinates, range.Color, 5f);
+                HistogramData.Add(histogramRenderData2);
+            }
+
+            //Discover All Peaks
+            List<Vector3> points = values!.FindAllPeaks(Parameters);
+            Vector3[] pointsArray = new Vector3[points.Count];
+            for (int i = 0; i < points.Count; i++) pointsArray[i] = points.ElementAt(i);
+
+            var histogramRenderData3 = Resources.ChartObjects.CreateSpheres(pointsArray, Colors.Blue, "Peaks", true, 0.05f);
+            HistogramData.Add(histogramRenderData3);
+
+            var histogramRenderData4 = Resources.ChartObjects.CreatePoints(pointsArray, Colors.Blue);
+            HistogramData.Add(histogramRenderData4);
+
+            for (int i = 0; i < points.Count; i++) pointsArray[i].Z *= 1.5f;
+            var histogramRenderData5 = Resources.ChartObjects.CreateSpheres(pointsArray, Colors.Blue, "Peaks", true, 0.07f);
+            HistogramData.Add(histogramRenderData5);
+        }
+
+        //Keep view same as start of Rerange.  Apparently need a real slight change otherwise it defaults back to unzooomed?
+        lower.Y -= 0.0001f;
+        upper.Y += 0.0001f;
+        Parameters.ViewportLower = lower;
+        Parameters.ViewportUpper = upper;
     }
 
     // An ApplyRangeChangesCommand property is generated that can be used to bind this action to the view
@@ -278,9 +341,132 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
             ionRanges[ii++] = range;
 
         Properties.UpdatePropertiesObservablesToParametersObservables(Parameters);
+        Properties.UpdatePropertiesSchemesToProperties(RangesTable);
 
         // Set the ranges
         await Resources.RangeManager.SetIonRanges(ionRanges);
+    }
+
+    // A RerangeCommand property is generated that can be used to bind this action to the view
+    [RelayCommand]
+    public async Task Help()
+    {
+        await Task.Yield();
+
+        var processStartInfo = new ProcessStartInfo()
+        {
+            FileName = "CustomMassRanging2.0.pdf",
+            UseShellExecute = true,
+        };
+        Process.Start(processStartInfo);
+    }
+
+    private void AddAnyTailEstimates()
+    {
+        var MinSortedRangesTable = RangesTable.OrderBy(o => o.Pos).ToList();
+        var tail = new List<Tuple<float, float>>();
+        double tailConsider = Parameters.dConsideredTailRange;
+        for (int i = 0; i < MinSortedRangesTable.Count(); i++)
+        {
+            tail.Clear();
+            var range0 = MinSortedRangesTable.ElementAt(i);
+            if (range0.Scheme == RangeScheme.LeftTail && values is not null)
+            {
+                //Start at Max of this range and add bin list for next 2 Da
+                for (int j = 0; j < values.Values.Count(); j++)
+                {
+                    if (values.Values[j].X >= range0.Max && values.Values[j].X <= range0.Max + tailConsider)
+                        tail.Add(new Tuple<float, float>(values.Values[j].X, values.Values[j].Y));
+                }
+                //Go through next ranges and remove items that are ranged
+                for (int j = i + 1; j < MinSortedRangesTable.Count(); j++)
+                {
+                    var range = RangesTable.ElementAt(j);
+                    if (range.Min < range0.Max + tailConsider)
+                    {
+                        foreach (var pair in tail.ToList())
+                            if (pair.Item1 >= range.Min && pair.Item1 <= range.Max) tail.Remove(pair);
+                    }
+                    else //Left to right sorted, so no other ranges should need to be checked
+                        break;
+                }
+                //Now do fitting routine
+                float N = 0f;
+                float SX = 0f;
+                float SY = 0f;
+                float SXX = 0f;
+                float SXY = 0f;
+                //float SYY = 0f;
+                foreach (var pair in tail)
+                {
+                    N += 1f;
+                    SX += (float)Math.Sqrt(pair.Item1);
+                    SY += (float)Math.Log(pair.Item2);
+                    SXX += pair.Item1; //Here sqrt becomes normal
+                    SXY += (float)Math.Sqrt(pair.Item1) * (float)Math.Log(pair.Item2);
+                    //SYY += (float)Math.Log(pair.Item2) * (float)Math.Log(pair.Item2);
+                }
+                float D = N * SXX - SX * SX;
+                float a = 1 / D * (SXX * SY - SX * SXY);
+                float b = 1 / D * (N * SXY - SX * SY);
+
+                //We know the width of .Left scheme
+                double bgd = range0.Bgd / (range0.Max - range0.Min) * values.BinWidth;
+                double xMax = (Math.Log(bgd) - a) / b;
+                xMax *= xMax; //Here because of sqrt
+
+                if (b > 0f || xMax < range0.Max || xMax > range0.Max + Parameters.DTailRangeMaximum)
+                {
+                    MessageBox.Show(
+                        $"Bad fit of exponential tail/slope. Setting ranging back to Left from LeftTail.\n" +
+                        $"Exponent cannot be positive, proposed tail cannot be > rangeMax + 5 Da: {b:N3}, {xMax:N3}",
+                        "Fit Error",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Information);
+                    foreach (var range in RangesTable)
+                    {
+                        if (range == range0)
+                            range.Scheme = RangeScheme.Left;
+                        return;
+                    }
+                }
+                else
+                {
+                    //ln(y)=a+bx or y = exp(a+bx)
+                    //now ln(y)=a+bsqrt(x) or y = exp(a+bsqrt(x))
+                    //Add line for tail
+                    Vector3[] newTail = new Vector3[20];
+                    float delta = (float)(xMax - range0.Max) / 20.0f;
+                    float start = (float)range0.Max;
+                    for (int j = 0; j < 20; j++)
+                    {
+                        newTail[j].X = start;
+                        newTail[j].Y = -1.0f; //Order of display
+                        newTail[j].Z = (float)Math.Exp(a + b * Math.Sqrt(start));
+                        start += delta;
+                    }
+
+                    //Plot on histogram
+                    var histogramRenderDataTail = Resources.ChartObjects.CreateLine(newTail, Colors.Red, 8f);
+                    HistogramData.Add(histogramRenderDataTail);
+
+                    float tailTotal = 0.0f;
+                    foreach (var range in RangesTable)
+                    {
+                        if (range == range0)
+                        {
+                            //Integrated counts for tail
+                            for (float x = (float)range0.Max; x < xMax; x += Resolution)
+                                tailTotal += (float)Math.Exp(a + b * Math.Sqrt(x)) - (float)bgd;
+                            range.Tail = tailTotal;
+                            range.Net += tailTotal;
+                            range.BgdSigma2 += Parameters.DTailEstimateUncertainty * tailTotal * Parameters.DTailEstimateUncertainty * tailTotal;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
     }
 
     private void AssessHistogramMakeValuesArray(IHistogramData massHist)
@@ -317,7 +503,7 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
         Properties.DMaxPeakPosition = (double)(massHist.Start + maxPos * massHist.BinWidth);
         Properties.DMaxPeakFWHunM = (double)(Bins) * massHist.BinWidth;
         Properties.DMaxPeakMRP = (double)((int)(10.0d * Properties.DMaxPeakPosition / Properties.DMaxPeakFWHunM)) / 10.0d;
-        
+
         //Want main peak to span ~10-20 bins
         Properties.ISpectrumCoarsenFactor = 1;
         int newBins = Bins;
@@ -328,29 +514,41 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
         }
 
         int j = Properties.ISpectrumCoarsenFactor;
-        double xShift = j > 1 ? (j / 2.0d) : 0.0d;
+        double xShift = j > 1 ? ((double)j / 2.0d) : 0.0d;
         int valuesLength = massHist.Values.Length == 0 ? 0 : (massHist.Values.Length - 1) / j + 1;
-        values = new MyCustomRanging(valuesLength, (float)massHist.Start, (float)massHist.BinWidth * (float)j);
+        values = new MyRanging(valuesLength, (float)massHist.Start, (float)massHist.BinWidth * (float)j, (float)Properties.DMaxPeakPosition);
         for (int i = 0; i < massHist.Values.Length; i += j)
         {
             float tempTotal = 0;
             for (int k = 0; k < j && i + k < massHist.Values.Length; k++) tempTotal += (float)massHist.Values.Span[i + k];
-            values.Values[i / j].X = (float)(massHist.Start + ((double)i + xShift) * massHist.BinWidth);
+            //values.Values[i / j].X = (float)(massHist.Start + ((double)i + xShift) * massHist.BinWidth);
+            values.Values[i / j].X = (float)(massHist.Start + (double)i * massHist.BinWidth);
             values.Values[i / j].Y = tempTotal;
         }
-
+        Resolution = (float)Properties.ISpectrumCoarsenFactor * (float)massHist.BinWidth;
     }
 
-    private void StartCustomMassRangesTable(IMassSpectrumRangeManager rangeManager)
+    private void StartCustomMassRangesTable()
     {
+        // Check that we have a valid RangeManager (an analysis set with no mass spectrum node will return a null range manager)
+        if (Resources.RangeManager is not { } rangeManager)
+        {
+            MessageBox.Show(
+                "This analysis requires a Mass Spectrum to be present to apply modified ranges",
+                "Custom Analysis Error",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+            return;
+        }
+
         // Get the current ranges
         var currentRanges = rangeManager.GetIonRanges();
 
         // Add the current ranges to the table rows binding to be displayed in the view
         foreach (var range in currentRanges)
         {
-            DisplayRangesTable displayRangesTable = new(range);
-            RangesTable.Add(displayRangesTable);
+            RangesTableEntries rangesTableEntries = new(range);
+            RangesTable.Add(rangesTableEntries);
             RangesTable.Last().Pos = values?.FindLocalMax(range.Min, range.Max) ?? double.NaN;
             RangesTable.Last().Scheme = null;
         }
@@ -366,28 +564,270 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
         }
     }
 
-    private void DetermineNewRanges(List<DisplayRangesTable> MinSortedRangesTable)
+    private void CreateDecomposedCompositionTable()
+    {
+        //Note for error propogation.  Consider O + O2.  There is signal S and background B for each.
+        //IVAS: O_Total = S_O + 2*S_O2.
+        //      Sigma_O_Total^2= (S_O+2*B_O) + 2*(S_O2 + 2*B_O2) = S_O+2*S_O2 + 2*(B_O+2*B_O2).
+        //      So just track the total net (or just total) and bgd seperately for error propogation
+        //
+        //Here: Sigma_O^2 = (S_O+2*B_O).  Sigma_2O2 = 2*sqrt(S_O2 + 2*B_O2) so Sigma_2O2^2 = 4*(S_O2+2*B_O2). 
+        //      Sigma_O_Total^2 = (S_O+2*B_O) + 4*(S_O2+2*B_O2) 
+        //      So tracking total net and bgd is insufficient.  Need the molecular piece too.
+
+        foreach (var range in RangesTable)
+        {
+            foreach (var (key, value) in range.Formula)
+            {
+                CompositionTableEntries tableEntry = new(range);
+                tableEntry.Name = key;
+                tableEntry.Counts *= (double)value;
+                tableEntry.Bgd *= (double)value;
+                tableEntry.Net *= (double)value;
+                tableEntry.Tail *= (double)value;
+                //value*value (not just value) for decomposed error propogation
+                tableEntry.BgdSigma2 *= (double)(value * value);
+
+                bool match = false;
+                foreach (var entry in DecomposedCompositionTable)
+                {
+                    if (entry == null)
+                    {
+                        DecomposedCompositionTable.Add(tableEntry);
+                        match = true;
+                        break;
+                    }
+                    else
+                    {
+                        if (entry.Name.Equals(key))
+                        {
+                            entry.AddToThisEntry(tableEntry);
+                            match = true;
+                            break;
+                        }
+                    }
+                }
+                if (!match) DecomposedCompositionTable.Add(tableEntry);
+            }
+        }
+
+        //Go back through and compile compositions
+        double Total_Counts = 0.0d;
+        double Total_Bgd = 0.0d;
+        double Total_Net = 0.0d;
+        double Total_Tail = 0.0d;
+        double Total_BgdSigma2 = 0.0d;
+        foreach (var entry in DecomposedCompositionTable)
+        {
+            Total_Counts += entry.Counts;
+            Total_Bgd += entry.Bgd;
+            Total_Net += entry.Net;
+            Total_Tail += entry.Tail;
+            Total_BgdSigma2 += entry.BgdSigma2;
+        }
+
+        //Statistical Test for detection
+        foreach (var entry in DecomposedCompositionTable)
+        {
+            //If not detected, then don't include in totals
+            if (entry.Net < 2.33d * Math.Sqrt(entry.BgdSigma2)) //Not deteted at 95% CL
+            {
+                Total_Counts -= entry.Counts;
+                Total_Bgd -= entry.Bgd;
+                Total_Net -= entry.Net;
+                Total_Tail -= entry.Tail;
+                Total_BgdSigma2 -= entry.BgdSigma2;
+                entry.DT = 4.65d * Math.Sqrt(entry.BgdSigma2);
+            }
+        }
+
+        //Compute compositions and errors
+        foreach (var entry in DecomposedCompositionTable)
+        {
+            if (entry.DT > 0.0d)
+            {
+                entry.Composition = -1.0d;
+                entry.DT /= Total_Net;
+            }
+            else
+            {
+                entry.Composition = entry.Net / Total_Net;
+                double Nc = Total_Net - entry.Net;
+                double Bc = Total_Bgd - entry.Bgd;
+                entry.Sigma = Math.Sqrt((entry.Net + entry.BgdSigma2) * (Nc - Bc) * (Nc - Bc) + (Nc + Bc) * (entry.Net - entry.BgdSigma2) * (entry.Net - entry.BgdSigma2))
+                    / Total_Net / Total_Net;
+            }
+            CreateOutputString(entry);
+        }
+
+    }
+
+    private void CreateOutputString(CompositionTableEntries entry)
+    {
+        if (entry.Composition < 0.0d)
+        {
+            entry.CompositionString = "-ND-";
+            int precision = 1;
+            while (Math.Pow(10, -precision) > entry.DT) precision++;
+            switch (precision)
+            {
+                case 1:
+                    entry.SigmaString = $"{entry.DT:P0}";
+                    break;
+                case 2:
+                    entry.SigmaString = $"{entry.DT:P1}";
+                    break;
+                case 3:
+                    entry.SigmaString = $"{entry.DT:P2}";
+                    break;
+                case 4:
+                    entry.SigmaString = $"{entry.DT:P3}";
+                    break;
+                case 5:
+                    entry.SigmaString = $"{entry.DT:P4}";
+                    break;
+                default:
+                    entry.SigmaString = $"{entry.DT:P5}";
+                    break;
+            }
+        }
+        else
+        {
+            int precision = 1;
+            while (Math.Pow(10, -precision) > entry.Sigma) precision++;
+            switch (precision)
+            {
+                case 1:
+                    entry.CompositionString = $"{entry.Composition:P0}";
+                    entry.SigmaString = $"{entry.Sigma:P0}";
+                    break;
+                case 2:
+                    entry.CompositionString = $"{entry.Composition:P1}";
+                    entry.SigmaString = $"{entry.Sigma:P1}";
+                    break;
+                case 3:
+                    entry.CompositionString = $"{entry.Composition:P2}";
+                    entry.SigmaString = $"{entry.Sigma:P2}";
+                    break;
+                case 4:
+                    entry.CompositionString = $"{entry.Composition:P3}";
+                    entry.SigmaString = $"{entry.Sigma:P3}";
+                    break;
+                case 5:
+                    entry.CompositionString = $"{entry.Composition:P4}";
+                    entry.SigmaString = $"{entry.Sigma:P4}";
+                    break;
+                default:
+                    entry.CompositionString = $"{entry.Composition:P5}";
+                    entry.SigmaString = $"{entry.Sigma:P5}";
+                    break;
+            }
+        }
+    }
+
+    private void CreateIonicCompositionTable()
+    {
+        foreach (var range in RangesTable)
+        {
+            CompositionTableEntries ionicCompositionTableEntry = new(range);
+            bool match = false;
+            foreach (var entry in IonicCompositionTable)
+            {
+                if (entry == null)
+                {
+                    IonicCompositionTable.Add(ionicCompositionTableEntry);
+                    match = true;
+                    break;
+                }
+                else
+                {
+                    if (entry.Name.Equals(ionicCompositionTableEntry.Name))
+                    {
+                        entry.AddToThisEntry(ionicCompositionTableEntry);
+                        match = true;
+                        break;
+                    }
+                }
+            }
+            if (!match) IonicCompositionTable.Add(ionicCompositionTableEntry);
+        }
+
+        //Go back through and compile compositions
+        double Total_Counts = 0.0d;
+        double Total_Bgd = 0.0d;
+        double Total_Net = 0.0d;
+        double Total_Tail = 0.0d;
+        double Total_BgdSigma2 = 0.0d;
+        foreach (var entry in IonicCompositionTable)
+        {
+            Total_Counts += entry.Counts;
+            Total_Bgd += entry.Bgd;
+            Total_Net += entry.Net;
+            Total_Tail += entry.Tail;
+            Total_BgdSigma2 += entry.BgdSigma2;
+        }
+
+        //Statistical Test for detection
+        foreach (var entry in IonicCompositionTable)
+        {
+            if (entry.Net < 2.33d * Math.Sqrt(entry.BgdSigma2)) //Not deteted at 95% CL
+            {
+                Total_Counts -= entry.Counts;
+                Total_Bgd -= entry.Bgd;
+                Total_Net -= entry.Net;
+                Total_Tail -= entry.Tail;
+                Total_BgdSigma2 -= entry.BgdSigma2;
+                entry.DT = 4.65d * Math.Sqrt(entry.BgdSigma2);
+            }
+        }
+
+        //Compute compositions and errors
+        foreach (var entry in IonicCompositionTable)
+        {
+            if (entry.DT > 0.0d)
+            {
+                entry.Composition = -1.0d;
+                entry.DT /= Total_Net;
+            }
+            else
+            {
+                entry.Composition = entry.Net / Total_Net;
+                double Nc = Total_Net - entry.Net;
+                double Bc = Total_Bgd - entry.Bgd;
+                entry.Sigma = Math.Sqrt((entry.Net + entry.BgdSigma2) * (Nc - Bc) * (Nc - Bc) + (Nc + Bc) * (entry.Net - entry.BgdSigma2) * (entry.Net - entry.BgdSigma2))
+                    / Total_Net / Total_Net;
+            }
+            CreateOutputString(entry);
+        }
+    }
+
+    private void DetermineNewRanges(List<RangesTableEntries> MinSortedRangesTable)
     {
         var nList = MinSortedRangesTable.Count();
 
         //List is sorted by Pos
         double leftDistance = MinSortedRangesTable[0].Pos - values?.StartPos ?? double.NaN;
         double rightDistance = 0.0d;
+
+        //If .Scheme is !null then evaluate, otherwise leave alone
         if (nList > 1)
         {
             rightDistance = MinSortedRangesTable[1].Pos - MinSortedRangesTable[0].Pos;
-            MinSortedRangesTable[0].Scheme = Scheme.DetermineRangeScheme(leftDistance, rightDistance, Parameters.dLeftRangeCriteria);
+            if (MinSortedRangesTable[0].Scheme == null)
+                MinSortedRangesTable[0].Scheme = Scheme.DetermineRangeScheme(leftDistance, rightDistance, Parameters.dLeftRangeCriteria);
 
             leftDistance = MinSortedRangesTable[nList - 1].Pos - MinSortedRangesTable[nList - 2].Pos; ;
             rightDistance = values?.Values.Last().X ?? double.NaN - MinSortedRangesTable[nList - 1].Pos;
-            MinSortedRangesTable[nList - 1].Scheme = Scheme.DetermineRangeScheme(leftDistance, rightDistance, Parameters.dLeftRangeCriteria);
+            if (MinSortedRangesTable[nList - 1].Scheme == null)
+                MinSortedRangesTable[nList - 1].Scheme = Scheme.DetermineRangeScheme(leftDistance, rightDistance, Parameters.dLeftRangeCriteria);
         }
 
         for (int i = 1; i < nList - 1; i++)
         {
             leftDistance = MinSortedRangesTable[i].Pos - MinSortedRangesTable[i - 1].Pos; ;
             rightDistance = MinSortedRangesTable[i + 1].Pos - MinSortedRangesTable[i].Pos;
-            MinSortedRangesTable[i].Scheme = Scheme.DetermineRangeScheme(leftDistance, rightDistance, Parameters.dLeftRangeCriteria);
+            if (MinSortedRangesTable[i].Scheme == null)
+                MinSortedRangesTable[i].Scheme = Scheme.DetermineRangeScheme(leftDistance, rightDistance, Parameters.dLeftRangeCriteria);
         }
 
         RangesTable.Clear();
@@ -396,106 +836,38 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
             float left = (float)MinSortedRangesTable[i].Min;
             float right = (float)MinSortedRangesTable[i].Max;
             double netMax = 0.0d;
-            double raw = 0.0d; ;
-            values?.DetermineRange((float)MinSortedRangesTable[i].Pos, MinSortedRangesTable[i].Scheme, Parameters, ref left, ref right, ref netMax, ref raw);
-            DisplayRangesTable newSortedRangesTable = new(MinSortedRangesTable[i].Name, MinSortedRangesTable[i].Pos, netMax, raw, MinSortedRangesTable[i].Formula,
-                MinSortedRangesTable[i].Volume, (double)left, (double)right, MinSortedRangesTable[i].Scheme, MinSortedRangesTable[i].Color);
+            double raw = 0.0d;
+            double leftBgd = 0.0d;
+            double rightBgd = 0.0d;
+            values?.DetermineRange((float)MinSortedRangesTable[i].Pos, MinSortedRangesTable[i].Scheme, Parameters, ref left, ref right, ref netMax, ref raw, ref leftBgd, ref rightBgd);
+
+            RangesTableEntries newSortedRangesTable = new(MinSortedRangesTable[i].Name, MinSortedRangesTable[i].Pos, netMax, raw, MinSortedRangesTable[i].Formula,
+                MinSortedRangesTable[i].Volume, (double)left, (double)right, MinSortedRangesTable[i].Scheme, MinSortedRangesTable[i].Color, leftBgd, rightBgd, Parameters.dLeftRangeDelta);
 
             RangesTable.Add(newSortedRangesTable);
         }
     }
 }
 
-public class DisplayVariablesTable
-{
-    [Display(Name = "Variable", AutoGenerateField = true, Description = "Variable", GroupName = "Parameters")]
-    public string Name { get; set; }
-
-    [Display(Name = "Value", AutoGenerateField = true, Description = "Value", GroupName = "Parameters")]
-    public string Value { get; set; }
-    
-    public DisplayVariablesTable(string name, string value)
-    {
-        Name = name;
-        Value = value;
-    }
-    public DisplayVariablesTable(DisplayVariablesTable variable)
-    {
-        Name = variable.Name;
-        Value = variable.Value;
-    }
-}
-
-public class DisplayRangesTable : IonTypeInfoRange
-{
-    // Name -> Column name
-    // AutoGenerateField -> If 'false', then this public property will not have a generated column in the table (default is true)
-    // Description -> Tool tip text if hovering over the column
-    // GroupName -> I don't use this often, but can be used group columns
-    // DataFormatString -> Formats the numeric value.
-    // See https://learn.microsoft.com/en-us/dotnet/standard/base-types/standard-numeric-format-strings or
-    // https://learn.microsoft.com/en-us/dotnet/standard/base-types/custom-numeric-format-strings
-    // https://learn.microsoft.com/en-us/dotnet/desktop/winforms/controls/how-to-add-tables-and-columns-to-the-windows-forms-datagrid-control?view=netframeworkdesktop-4.8
-
-    [Display(Name = "Ion", AutoGenerateField = true, Description = "Ion Name", GroupName = "Ranges")]
-    public new string Name { get => base.Name; }
-
-    [Display(Name = "Peak (Da)", AutoGenerateField = true, Description = "Peak Position (Da)", GroupName = "Ranges")]
-    [DisplayFormat(DataFormatString = "n3")]
-    public double Pos { get; set; } = 0.0d;
-
-    public new IonFormula Formula { get => base.Formula; }
-
-    [Display(AutoGenerateField = false)]
-    public double Net { get; set; } = 0.0d;
-    [Display(AutoGenerateField = false)]
-    public double Counts { get; set; } = 0.0d;
-
-    [Display(AutoGenerateField = false)]
-    public new double Volume { get => base.Volume; }
-
-    [Display(Name = "Min (Da)", AutoGenerateField = true, Description = "Left Range Edge", GroupName = "Ranges")]
-    [DisplayFormat(DataFormatString = "n3")]
-    public new double Min { get => base.Min; }
-
-    [Display(Name = "Max (Da)", AutoGenerateField = true, Description = "Right Range Edge", GroupName = "Ranges")]
-    [DisplayFormat(DataFormatString = "n3")]
-    public new double Max { get => base.Max; }
-
-    [Display(Name = "Scheme", AutoGenerateField = true, Description = "Right Range Edge", GroupName = "Ranges")]
-    public Scheme.RangeScheme? Scheme { get; set; } = null;
-
-    //[Display(Name = "Color", AutoGenerateField = true, Description = "Display Color", GroupName = "Ranges")]
-    [Display(AutoGenerateField = false)]
-    public new System.Windows.Media.Color Color { get => base.Color; }
-
-    public DisplayRangesTable(string name, double pos, double net, double counts, IonFormula ionFormula, double volume, double min, double max, Scheme.RangeScheme? scheme, System.Windows.Media.Color color) 
-        : base(name, ionFormula, volume, min, max, color)
-    {
-        Pos = pos;
-        Net = net;
-        Counts = counts;
-        Scheme = scheme;
-    }
-    public DisplayRangesTable(IonTypeInfoRange ionTypeInfoRange)
-    : base(ionTypeInfoRange.Name, ionTypeInfoRange.Formula, ionTypeInfoRange.Volume, ionTypeInfoRange.Min, ionTypeInfoRange.Max, ionTypeInfoRange.Color)
-    {
-    }
-}
-
 public class Scheme
 {
-    public enum RangeScheme
-    {
-        Left,
-        Half,
-        Quarter
-    }
-
     public static RangeScheme DetermineRangeScheme(double leftDistance, double rightDistance, double criteria)
     {
         if (leftDistance >= criteria) return RangeScheme.Left;
         else if (leftDistance >= 0.9d && rightDistance >= 0.9d) return RangeScheme.Half;
         else return RangeScheme.Quarter;
     }
+}
+
+[TypeConverter(typeof(EnumBindingSourceExtension))]
+public enum RangeScheme
+{
+    [EnumMember(Value = "Left")]
+    Left,
+    [EnumMember(Value = "LeftTail")]
+    LeftTail,
+    [EnumMember(Value = "Half")]
+    Half,
+    [EnumMember(Value = "Quarter")]
+    Quarter,
 }

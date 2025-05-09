@@ -35,6 +35,9 @@
 	</ItemGroup>
 
 	<ItemGroup>
+	  <None Update="CustomMassRanging2.0.pdf">
+	    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+	  </None>
 	</ItemGroup>
 
 	<!-- Nuspec Initiaization and Configuration -->
