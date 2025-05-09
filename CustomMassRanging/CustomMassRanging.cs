@@ -18,6 +18,8 @@ using CommunityToolkit.Mvvm.Input;
 
 /// CustomMassRanging
 /// 
+/// dotnet pack --configuration Release --property:Version=1.0.0 --property:PackageOutputPath="C:\Users\tprosa\OneDrive - AMETEK Inc\Desktop\MyExtensions"
+/// 
 /// Update:
 ///     Start with ranges as defined in IVAS ROI
 ///     Confirm they are non-overlapping
@@ -43,6 +45,15 @@ using CommunityToolkit.Mvvm.Input;
 ///     Any change in "Properties" triggers a need to "Update" from beginning
 ///     Any changes to "Parameters" are copied to "Properties" upon Apply  
 ///     
+/// Programming Notes:
+///     the controls:Chart2D is not the same and an IVAS chart.
+///     Perhaps this can become more equivelant to the IVAS chart, but it is only aproximate:
+///     1) Double-clicking does not completely unzoom, you need to do it twice
+///     2) The auto-y-scaling does not work correctly
+///     3) Log to lin can also have unexpected results
+///     4) Interesting:  The plot is X vs. Z (it is a view into a 3D graph).  So, the renering
+///     of varios plots is orderd by the Y value (negative being in front and positive in back).
+///     5) Looking for a work around to current Sphere and Points plotting options.  Not useful.
 
 namespace CustomMassRanging;
 

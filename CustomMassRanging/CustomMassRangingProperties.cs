@@ -22,12 +22,16 @@ public partial class CustomMassRangingProperties : ObservableObject
      */
 
     //Programming note: DisplayFormat() should work, but does not in IVAS 6.3.3.51 
-    //  Apparently IVAS does some smart formatting, but I cannot control via DisplayFormat()
-    //  e.g., [field: DisplayFormat(DataFormatString = "n0")]
+    //  This is a DevExpress PropertyGridControl issue (the one used for these extensions)
+    //  Looking at the AP Suite source code, it seems like CAMECA has a bunch of conditional
+    //  field formatting directly into the general template just for when those fields are present.
+    //  e.g., [field: DisplayFormat(DataFormatString = "n0")] will not work, but IVAS may force
+    //  formating that makes it seem like it is being used when it is not.
 
     //Properties is IVAS controlled (and I do not know how it knows this is the right class).
     //  It does not respect/use GroupName, but I'll include here as it is
     //  then exactly the same as my Parameters Table
+
     [ObservableProperty]
     [field: Display(Name = "Max Peak Name", GroupName = "Histogram Information",
         Description = "Ion range name of the most\n" +
