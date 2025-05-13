@@ -66,8 +66,10 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
     public float MaxIntensity { get; set; } = 0.0f;
     public float Resolution { get; set; } = 0.0f;
 
-    //RangesTable is the local copy of ranges and results
+    //RangesTable is the displayed table (one being used for compositions)
+    //StartTable contains the original imported ranges
     public ObservableCollection<RangesTableEntries> RangesTable { get; set; } = new();
+    public ObservableCollection<RangesTableEntries> StartTable { get; set; } = new();
 
     //CompositionTable can be built after RangesTable has been updated
     public ObservableCollection<CompositionTableEntries> IonicCompositionTable { get; } = new();
@@ -121,6 +123,7 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
         // Clear existing view data
         HistogramData.Clear();
         RangesTable.Clear();
+        StartTable.Clear();
         IonicCompositionTable.Clear();
         DecomposedCompositionTable.Clear();
 
@@ -145,10 +148,12 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
             AssessHistogramMakeValuesArray(massHist);
 
             //Check to see if histogram returned values for ranging
-            if (values is not { })
+            //Also check overlaps
+            if (values is null)
             {
                 MessageBox.Show(
-                    "No values found.",
+                    "No values found. No ranges defined in original node.\n"+
+                    "Current implimentation modifies _existing_ range definitions.",
                     "Custom Analysis Error",
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
@@ -163,32 +168,14 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
                 if (Properties.ViewportUpper.X <= 0.0f && Properties.ViewportUpper.Y <= 1.0f)
                     Properties.ViewportUpper = new Vector2(values.Values.Last().X, MaxIntensity);
 
-                // Get the current ranges
-                var currentRanges = rangeManager.GetIonRanges();
+                //Here a copy of the current ranges is made as a starting point for RangesTable
+                StartCustomMassRangesTable();
 
-                // Check for overlapps...
-                for (int i = 0; i < currentRanges.Count(); i++)
-                {
-                    var range0 = currentRanges.ElementAt(i);
-                    for (int j = i + 1; j < currentRanges.Count(); j++)
-                    {
-                        var range = currentRanges.ElementAt(j);
-                        // No overlap
-                        if (!(range0.Min > range.Max || range0.Max < range.Min))
-                        {
-                            MessageBox.Show(
-                                $"Original AP Suite allows for overlapping ranges; however, range overlaps are not allowed in this extension.\n" +
-                                $"Please fix in parent range definitions and try again. ({range0.Min:N3}, {range0.Max:N}) overlapps ({range.Min:N3}, {range.Max:N3})",
-                                "Custom Analysis Error",
-                                MessageBoxButton.OK,
-                                MessageBoxImage.Error);
-                            return false;
-                        }
-                    }
-                }
 
-                // Show current ranges
-                var rangesDisplay = rangeManager.GetIonRanges()
+                bool tryResolveOverlapps = false;
+                if (CheckForOverlappingRanges(tryResolveOverlapps)) return false; //false = invalid state
+
+                var rangesDisplay = RangesTable
                     .Select(r => (IChart2DSlice)(new Chart2DSlice((float)r.Min, (float)r.Max, r.Color)))
                     .ToList();
 
@@ -200,18 +187,9 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
                 HistogramData.Add(histogramRenderData);
             }
         }
-
-        //Here a copy of the current ranges is made as a starting point for RangesTable
-        StartCustomMassRangesTable();
-
-        //Properties is an enherited observable from CustomMassRangignProperties
+        
+        //Properties is an enherited observable from CustomMassRangignProperties -- this needs to be after making of plots
         Parameters.ResetParametersObservablesToPropertiesObservables(Properties);
-
-        //Properties also may have a Saved Analysis Tree RangesTable.  Check to see if a scheme exists for any of these ranges
-        //If so, then copy scheme into RangesTable--a non-null scheme is interpreted as a user selected scheme to override auto
-        foreach (var range in RangesTable)
-            foreach (var range_item in Properties.RangesList)
-                if (range_item.Pos >= range.Min && range_item.Pos <= range.Max) range.Scheme = range_item.Scheme;
 
         // Return true as the update completed successfully and the data state of the analysis should be considered valid
         return true;
@@ -228,43 +206,109 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
 
         HistogramData.Clear();
 
-        var MinSortedRangesTable = RangesTable.OrderBy(o => o.Pos).ToList();
-
         // Check that there is at least 1 existing range
-        if (MinSortedRangesTable.Count() < 1)
+        if (StartTable.Count() < 1)
         {
             MessageBox.Show(
-                "No ranges defined in original node.  Current implimentation modifies _existing_ range definitions.",
+                "No ranges defined in original node.\n" +
+                "Current implimentation modifies _existing_ range definitions.",
                 "Custom Analysis Error",
                 MessageBoxButton.OK,
                 MessageBoxImage.Error);
             return;
         }
 
-        //RangesTable is modified in DetermineNewRanges
-        //Need to go from low to high m/z for our left consideration
-        DetermineNewRanges(MinSortedRangesTable);
-
-        // Check for overlapps...
-        for (int i = 0; i < RangesTable.Count(); i++)
+        // values is the coarsened mass histogram
+        // Discover all peaks first
+        List<Vector3> peaks = values!.FindAllPeaks(Parameters);
+        Vector3[] peakPoints = new Vector3[peaks.Count];
+        for (int i = 0; i < peaks.Count; i++)
         {
-            var range0 = RangesTable.ElementAt(i);
-            for (int j = i + 1; j < RangesTable.Count(); j++)
+            peakPoints[i] = peaks.ElementAt(i);
+            peakPoints[i].Y = -1.0f;
+        }
+
+        ISeriesRenderData series = Resources.ChartObjects.CreateSeries();
+        series.Positions = peakPoints;  // Position data here
+        series.MarkerColor = Colors.Blue;
+        series.MarkerShape = MarkerShape.Triangle;
+        series.Thickness = 0;
+        HistogramData.Add(series);
+
+        /*
+        foreach (var peak in peaks)
+        {
+            Vector3[] peakLine = new Vector3[2];
+            peakLine[0] = peak;
+            peakLine[1] = peak;
+            peakLine[1].Z = 1.0f;
+            peakLine[0].Y = 1.0f;//Behind any defined ranges
+            peakLine[1].Y = 1.0f;
+            var histogramRenderData2 = Resources.ChartObjects.CreateLine(peakLine, Colors.Blue, 1f);
+            HistogramData.Add(histogramRenderData2);
+        }
+        */
+
+        if (Parameters.BIgnoreDiscoveredUnknownPeaks)
+        {
+            var MinSortedRangesTable = StartTable.OrderBy(o => o.Pos).ToList();
+            // Remember scheme unless null
+            foreach (var range0 in MinSortedRangesTable)
             {
-                var range = RangesTable.ElementAt(j);
-                // No overlap
-                if (!(range0.Min > range.Max || range0.Max < range.Min))
+                foreach (var range in RangesTable)
                 {
-                    MessageBox.Show(
-                        $"New ranges result in at least one overlapping range. Please consider deleting ranges or modifying schemes and retrying.\n" +
-                        $"Overlapping range: ({range0.Min:N3}, {range0.Max:N3}) overlapps ({range.Min:N3}, {range.Max:N3})",
-                        "Custom Analysis Error",
-                        MessageBoxButton.OK,
-                        MessageBoxImage.Error);
-                    return;
+                    if (range.Min <= range0.Pos && range.Max >= range0.Pos && range.Scheme != null)
+                    { 
+                        range0.Scheme = range.Scheme;
+                        break;
+                    }
                 }
             }
+
+            //RangesTable is redefined in DetermineNewRanges
+            //Need to go from low to high m/z for our left consideration
+            DetermineNewRanges(MinSortedRangesTable);
         }
+        else
+        {
+            List<RangesTableEntries> MinSortedRangesTable = new List<RangesTableEntries>();
+            foreach (var peak in peaks)
+            {
+                //Dummy entry...only .POS really matters
+                IonFormula tempIonFormula = new IonFormula(Enumerable.Empty<IonFormula.Component>());
+                IonTypeInfoRange tempIonTypeInforRange = new IonTypeInfoRange("Discovered", tempIonFormula, 0d, (double)peak.X - 0.1d, (double)peak.X + 0.1d, Colors.Black);
+                RangesTableEntries dummy = new RangesTableEntries(tempIonTypeInforRange);
+                dummy.Pos = peak.X;
+                dummy.Scheme = null;
+                foreach (var range in StartTable)
+                {
+                    if (range.Min <= peak.X && range.Max >= peak.X)
+                    {
+                        dummy = range;
+                        break;
+                    }
+                }
+                //dummy.Scheme will be null or have StartTable value, want RangesTable value
+                //dummy has start table values, so dummy may not == range
+                foreach (var range in RangesTable)
+                {
+                    if (range.Min <= dummy.Pos && range.Max >= dummy.Pos && range.Scheme != null)
+                    { 
+                        dummy.Scheme = range.Scheme;
+                        break;
+                    }
+                }
+                MinSortedRangesTable.Add(dummy);
+            }
+            MinSortedRangesTable = MinSortedRangesTable.OrderBy(o => o.Pos).ToList();
+
+            //RangesTable is redefined in DetermineNewRanges
+            //Need to go from low to high m/z for our left consideration
+            DetermineNewRanges(MinSortedRangesTable);
+        }
+
+        bool tryResolveOverlapps = true;
+        if (CheckForOverlappingRanges(tryResolveOverlapps)) return;
 
         AddAnyTailEstimates();
 
@@ -287,7 +331,7 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
         HistogramData.Add(histogramRenderData);
 
         // Adding line segments for each range
-        if (values is not { })
+        if (values is not null)
         {
             foreach (var range in RangesTable)
             {
@@ -298,21 +342,6 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
                 var histogramRenderData2 = Resources.ChartObjects.CreateLine(range.LineCoordinates, range.Color, 5f);
                 HistogramData.Add(histogramRenderData2);
             }
-
-            //Discover All Peaks
-            List<Vector3> points = values!.FindAllPeaks(Parameters);
-            Vector3[] pointsArray = new Vector3[points.Count];
-            for (int i = 0; i < points.Count; i++) pointsArray[i] = points.ElementAt(i);
-
-            var histogramRenderData3 = Resources.ChartObjects.CreateSpheres(pointsArray, Colors.Blue, "Peaks", true, 0.05f);
-            HistogramData.Add(histogramRenderData3);
-
-            var histogramRenderData4 = Resources.ChartObjects.CreatePoints(pointsArray, Colors.Blue);
-            HistogramData.Add(histogramRenderData4);
-
-            for (int i = 0; i < points.Count; i++) pointsArray[i].Z *= 1.5f;
-            var histogramRenderData5 = Resources.ChartObjects.CreateSpheres(pointsArray, Colors.Blue, "Peaks", true, 0.07f);
-            HistogramData.Add(histogramRenderData5);
         }
 
         //Keep view same as start of Rerange.  Apparently need a real slight change otherwise it defaults back to unzooomed?
@@ -339,8 +368,8 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
             return;
         }
 
-        var existingRanges = rangeManager.GetIonRanges();
-        IonTypeInfoRange[] ionRanges = new IonTypeInfoRange[existingRanges.Count()];
+        //var existingRanges = rangeManager.GetIonRanges();
+        IonTypeInfoRange[] ionRanges = new IonTypeInfoRange[RangesTable.Count()];
 
         int ii = 0;
         foreach (IonTypeInfoRange range in RangesTable)
@@ -363,7 +392,7 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
         string extensionDirectory = new DirectoryInfo(Assembly.GetExecutingAssembly().Location).Parent!.FullName;
 
         // And then the full path to your PDF should be
-        string absHelpPath = Path.Join(extensionDirectory, "CustomMassRanging2.0.pdf");
+        string absHelpPath = Path.Join(extensionDirectory, "CustomMassRanging2.1.pdf");
 
         var processStartInfo = new ProcessStartInfo()
         {
@@ -373,6 +402,65 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
         Process.Start(processStartInfo);
     }
 
+    private bool CheckForOverlappingRanges(bool tryResolveOverlapps)
+    {
+        // Check for overlapps...
+        bool overlappingRanges = false;
+        string overlaps = "";
+        for (int i = 0; i < RangesTable.Count(); i++)
+        {
+            var range0 = RangesTable.ElementAt(i);
+            for (int j = i + 1; j < RangesTable.Count(); j++)
+            {
+                var range = RangesTable.ElementAt(j);
+                if (!(range0.Min >= range.Max || range0.Max <= range.Min))
+                {
+                    if (tryResolveOverlapps)
+                    {
+                        if (range0.Name == range.Name) //Resolved when ion names are the same
+                        {
+                            if (range0.Net > range.Net) //Keep the biggest
+                                RangesTable.RemoveAt(j--);
+                            else
+                            {
+                                RangesTable.RemoveAt(i--);
+                                break;
+                            }
+                        }
+                        else if (range0.Name == "Discovered")
+                        {
+                            RangesTable.RemoveAt(i--);
+                            break;
+                        }
+                        else if (range.Name == "Discovered")
+                            RangesTable.RemoveAt(j--);
+                        else
+                        {
+                            overlappingRanges = true;
+                            overlaps += $"\n{range0.Name}: ({range0.Min:N3}, {range0.Max:N}) overlapps {range.Name}: ({range.Min:N3}, {range.Max:N3})";
+                        }
+                    }
+                    else
+                    {
+                        overlappingRanges = true;
+                        overlaps += $"\n{range0.Name}: ({range0.Min:N3}, {range0.Max:N}) overlapps {range.Name}: ({range.Min:N3}, {range.Max:N3})";
+                    }
+                }
+            }
+        }
+        if (overlappingRanges)
+        {
+            MessageBox.Show(
+                $"Original IVAS allows for overlapping ranges; however, range overlaps are not allowed in extensions. Please fix." +
+                $"{overlaps}",
+                "Custom Analysis Error",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+            return true;
+        }
+        return false;
+    }
+    
     private void AddAnyTailEstimates()
     {
         var MinSortedRangesTable = RangesTable.OrderBy(o => o.Pos).ToList();
@@ -559,12 +647,28 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
         // Add the current ranges to the table rows binding to be displayed in the view
         foreach (var range in currentRanges)
         {
+            if (range.Name == "Discovered") continue; //Skip over any previously "Discovered" peaks
             RangesTableEntries rangesTableEntries = new(range);
+            StartTable.Add(rangesTableEntries); 
             RangesTable.Add(rangesTableEntries);
             RangesTable.Last().Pos = values?.FindLocalMax(range.Min, range.Max) ?? double.NaN;
+            StartTable.Last().Pos = RangesTable.Last().Pos;
+            StartTable.Last().Scheme = null;
             RangesTable.Last().Scheme = null;
+
+            //Properties also may have a Saved Analysis Tree RangesTable.  Check to see if a scheme exists for any of these ranges
+            //If so, then copy scheme into RangesTable--a non-null scheme is interpreted as a user selected scheme to override auto
+            foreach (var range_item in Properties.RangesList)
+            {
+                if (range_item.Pos >= range.Min && range_item.Pos <= range.Max)
+                {
+                    StartTable.Last().Scheme = range_item.Scheme;
+                    RangesTable.Last().Scheme = range_item.Scheme;
+                }
+            }
         }
 
+        // Find which range has bin with the most counts
         Properties.SMaxPeakName = "Not Ranged";
         foreach (var range in currentRanges)
         {
@@ -814,7 +918,7 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
     }
 
     private void DetermineNewRanges(List<RangesTableEntries> MinSortedRangesTable)
-    {
+    {   
         var nList = MinSortedRangesTable.Count();
 
         //List is sorted by Pos

@@ -76,6 +76,12 @@ namespace CustomMassRanging
         public bool bUseFixedRangingWidth;
 
         [ObservableProperty]
+        [field: Display(Name = "Ignore Discovered Peaks", GroupName = "Ranging Parameters",
+            Description = "Do not incoprotate discovred peaks into range definitions.\n" +
+                "Do not use discovered or _Unknown_ ranges in composition calculations.")]
+        public bool bIgnoreDiscoveredUnknownPeaks = true;
+
+        [ObservableProperty]
         [field: Display(Name = "Considered Tail Range (Da)", GroupName = "Tail Parameters", 
             Description = "Region (in Da) past range maximum to fit exponential tail.")]
         public double dConsideredTailRange;
@@ -152,6 +158,7 @@ namespace CustomMassRanging
             DLeftRangeCriteria = properties.DLeftRangeCriteria;
             DLeftRangeDelta = properties.DLeftRangeDelta;
             BUseFixedRangingWidth = properties.BUseFixedRangingWidth;
+            BIgnoreDiscoveredUnknownPeaks = properties.BIgnoreDiscoveredUnknownPeaks;
             DConsideredTailRange = properties.DConsideredTailRange;
             DTailEstimateUncertainty = properties.DTailEstimateUncertainty;
             if (properties.DSensitivity < 0.01d || properties.DSensitivity > 1.0d)

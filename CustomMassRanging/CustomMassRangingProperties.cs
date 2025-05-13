@@ -95,6 +95,12 @@ public partial class CustomMassRangingProperties : ObservableObject
     public bool bUseFixedRangingWidth = false;
 
     [ObservableProperty]
+    [field: Display(Name = "Ignore Discovered Peaks", GroupName = "Ranging Parameters",
+    Description = "Do not incoprotate discovred peaks into range definitions.\n"+
+        "Do not use discovered or _Unknown_ ranges in composition calculations.")]
+    public bool bIgnoreDiscoveredUnknownPeaks = true;
+
+    [ObservableProperty]
     [field: Display(Name = "Considered Tail Range (Da)", GroupName = "Tail Parameters",
         Description = "Region (in Da) past range maximum to fit exponential tail.")]
     public double dConsideredTailRange = 1.0d;
@@ -150,6 +156,7 @@ public partial class CustomMassRangingProperties : ObservableObject
         DLeftRangeCriteria = parameters.DLeftRangeCriteria;
         DLeftRangeDelta = parameters.DLeftRangeDelta;
         BUseFixedRangingWidth = parameters.BUseFixedRangingWidth;
+        BIgnoreDiscoveredUnknownPeaks = parameters.BIgnoreDiscoveredUnknownPeaks;
         DConsideredTailRange = parameters.DConsideredTailRange;
         DTailEstimateUncertainty = parameters.DTailEstimateUncertainty;
         dTailRangeMaximum = parameters.dTailRangeMaximum;
@@ -180,6 +187,7 @@ public partial class CustomMassRangingProperties : ObservableObject
         copy.DLeftRangeCriteria = DLeftRangeCriteria;
         copy.DLeftRangeDelta = DLeftRangeDelta;
         copy.BUseFixedRangingWidth = BUseFixedRangingWidth;
+        copy.BIgnoreDiscoveredUnknownPeaks = BIgnoreDiscoveredUnknownPeaks;
         copy.DConsideredTailRange = DConsideredTailRange;
         copy.DTailEstimateUncertainty = DTailEstimateUncertainty;
         copy.DTailRangeMaximum = DTailRangeMaximum;

@@ -79,6 +79,7 @@ namespace CustomMassRanging
             //Log scale cannot deal with negative values!
             if (scheme == RangeScheme.Left || scheme == RangeScheme.LeftTail)
             {
+                if (Min - leftDelta < 0) leftDelta = Min;
                 LineCoordinates[0].X = (float)(Min - leftDelta);
                 LineCoordinates[0].Y = -1.0f; //In front
                 LineCoordinates[0].Z = (float)(leftBgd / bgdWidth);

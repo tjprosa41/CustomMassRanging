@@ -258,6 +258,7 @@ namespace CustomMassRanging
                 newLeft = GetPos(left - 1); //Need plot and range to both go up to next bin edge, so add -1 bigger
                 newRight = GetPos(right);
                 int nBinsDelta = (int)((float)(parameters.DLeftRangeDelta / BinWidth));
+                if (left - nBinsDelta < 0) nBinsDelta = left;
                 leftBgd = Integrate(left, right, -nBinsDelta);
                 rightBgd = 0;
                 netMax -= leftBgd;
@@ -314,7 +315,7 @@ namespace CustomMassRanging
             int MinPeakMaxCounts = parameters.iMinPeakMaxCounts;
 
             //Go through entire mass spectrum and use minimum range width to see if there are statistically significant counts
-            List<Vector3> points = new();
+            List<Vector3> peaks = new();
             float factor = (float)(parameters.dMinWidthFactor * parameters.dMaxPeakFWHunM) / BinWidth;
             float currentPos = GetPos(Length - 1);
             //Need to accomodate for width at end of histogram and 1/2-range width
@@ -369,12 +370,12 @@ namespace CustomMassRanging
                     double rightEdge = GetPos(left + nBins + shift);
                     if (max > (double)MinPeakMaxCounts)
                     {
-                        points.Add(new Vector3(GetPos(maxPoint), -2.0f, (float)max));
+                        peaks.Add(new Vector3(GetPos(maxPoint), -2.0f, (float)max));
                         left = maxPoint + delta + shift - 1;
                     }
                 }
             }
-            return points;
+            return peaks;
         }
     }
 }
