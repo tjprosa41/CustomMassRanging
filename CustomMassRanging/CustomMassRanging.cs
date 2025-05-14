@@ -171,7 +171,6 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
                 //Here a copy of the current ranges is made as a starting point for RangesTable
                 StartCustomMassRangesTable();
 
-
                 bool tryResolveOverlapps = false;
                 if (CheckForOverlappingRanges(tryResolveOverlapps)) return false; //false = invalid state
 
@@ -267,7 +266,8 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
 
             //RangesTable is redefined in DetermineNewRanges
             //Need to go from low to high m/z for our left consideration
-            DetermineNewRanges(MinSortedRangesTable);
+            //What about discovered peaks!
+            DetermineNewRanges(MinSortedRangesTable, peaks);
         }
         else
         {
@@ -276,7 +276,7 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
             {
                 //Dummy entry...only .POS really matters
                 IonFormula tempIonFormula = new IonFormula(Enumerable.Empty<IonFormula.Component>());
-                IonTypeInfoRange tempIonTypeInforRange = new IonTypeInfoRange("Discovered", tempIonFormula, 0d, (double)peak.X - 0.1d, (double)peak.X + 0.1d, Colors.Black);
+                IonTypeInfoRange tempIonTypeInforRange = new IonTypeInfoRange("Discovered", tempIonFormula, 0d, (double)peak.X - 0.05d, (double)peak.X + 0.05d, Colors.Black);
                 RangesTableEntries dummy = new RangesTableEntries(tempIonTypeInforRange);
                 dummy.Pos = peak.X;
                 dummy.Scheme = null;
@@ -284,12 +284,18 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
                 {
                     if (range.Min <= peak.X && range.Max >= peak.X)
                     {
-                        dummy = range;
+                        //dummy = range;
+                        IonTypeInfoRange tempIonTypeInforRange2 = new IonTypeInfoRange(range.Name, range.Formula, range.Volume, (double)peak.X - 0.05d, (double)peak.X + 0.05d, range.Color);
+                        RangesTableEntries dummy2 = new RangesTableEntries(tempIonTypeInforRange2);
+                        dummy2.Pos = peak.X;
+                        dummy2.Scheme = null;
+                        dummy = dummy2;
                         break;
                     }
                 }
                 //dummy.Scheme will be null or have StartTable value, want RangesTable value
                 //dummy has start table values, so dummy may not == range
+                //note, if original ranges are huge (cover multiple peaks), then discovred peaks in tail will be ignored.  Need to fix
                 foreach (var range in RangesTable)
                 {
                     if (range.Min <= dummy.Pos && range.Max >= dummy.Pos && range.Scheme != null)
@@ -304,7 +310,7 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
 
             //RangesTable is redefined in DetermineNewRanges
             //Need to go from low to high m/z for our left consideration
-            DetermineNewRanges(MinSortedRangesTable);
+            DetermineNewRanges(MinSortedRangesTable, peaks);
         }
 
         bool tryResolveOverlapps = true;
@@ -917,33 +923,68 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
         }
     }
 
-    private void DetermineNewRanges(List<RangesTableEntries> MinSortedRangesTable)
+    private void DetermineNewRanges(List<RangesTableEntries> MinSortedRangesTable, List<Vector3> peaks)
     {   
         var nList = MinSortedRangesTable.Count();
 
         //List is sorted by Pos
         double leftDistance = MinSortedRangesTable[0].Pos - values?.StartPos ?? double.NaN;
         double rightDistance = 0.0d;
-
+        double leftNeighbor = 0.0d;
+        double rightNeighbor = 0.0d;
         //If .Scheme is !null then evaluate, otherwise leave alone
+        //GetNearestDiscoveredPeaks takes into account discovered peaks for scheme determination
         if (nList > 1)
         {
-            rightDistance = MinSortedRangesTable[1].Pos - MinSortedRangesTable[0].Pos;
-            if (MinSortedRangesTable[0].Scheme == null)
-                MinSortedRangesTable[0].Scheme = Scheme.DetermineRangeScheme(leftDistance, rightDistance, Parameters.dLeftRangeCriteria);
+            //First item
+            if (GetNearestDiscoveredPeaks(peaks, ref leftNeighbor, MinSortedRangesTable[0].Pos, ref rightNeighbor))
+            {
+                leftDistance = MinSortedRangesTable[0].Pos - leftNeighbor;
+                rightDistance = rightNeighbor - MinSortedRangesTable[0].Pos;
+                if (MinSortedRangesTable[0].Scheme == null)
+                    MinSortedRangesTable[0].Scheme = Scheme.DetermineRangeScheme(leftDistance, rightDistance, Parameters.dLeftRangeCriteria);
+            }
+            else
+            {
+                rightDistance = MinSortedRangesTable[1].Pos - MinSortedRangesTable[0].Pos;
+                if (MinSortedRangesTable[0].Scheme == null)
+                    MinSortedRangesTable[0].Scheme = Scheme.DetermineRangeScheme(leftDistance, rightDistance, Parameters.dLeftRangeCriteria);
+            }
 
-            leftDistance = MinSortedRangesTable[nList - 1].Pos - MinSortedRangesTable[nList - 2].Pos; ;
-            rightDistance = values?.Values.Last().X ?? double.NaN - MinSortedRangesTable[nList - 1].Pos;
-            if (MinSortedRangesTable[nList - 1].Scheme == null)
-                MinSortedRangesTable[nList - 1].Scheme = Scheme.DetermineRangeScheme(leftDistance, rightDistance, Parameters.dLeftRangeCriteria);
+            //Last item
+            if (GetNearestDiscoveredPeaks(peaks, ref leftNeighbor, MinSortedRangesTable[nList-1].Pos, ref rightNeighbor))
+            {
+                leftDistance = MinSortedRangesTable[nList - 1].Pos - leftNeighbor;
+                rightDistance = rightNeighbor - MinSortedRangesTable[nList - 1].Pos;
+                if (MinSortedRangesTable[nList - 1].Scheme == null)
+                    MinSortedRangesTable[nList - 1].Scheme = Scheme.DetermineRangeScheme(leftDistance, rightDistance, Parameters.dLeftRangeCriteria);
+            }
+            else
+            {
+                leftDistance = MinSortedRangesTable[nList - 1].Pos - MinSortedRangesTable[nList - 2].Pos;
+                rightDistance = values?.Values.Last().X ?? double.NaN - MinSortedRangesTable[nList - 1].Pos;
+                if (MinSortedRangesTable[nList - 1].Scheme == null)
+                    MinSortedRangesTable[nList - 1].Scheme = Scheme.DetermineRangeScheme(leftDistance, rightDistance, Parameters.dLeftRangeCriteria);
+            }
+
         }
 
         for (int i = 1; i < nList - 1; i++)
         {
-            leftDistance = MinSortedRangesTable[i].Pos - MinSortedRangesTable[i - 1].Pos; ;
-            rightDistance = MinSortedRangesTable[i + 1].Pos - MinSortedRangesTable[i].Pos;
-            if (MinSortedRangesTable[i].Scheme == null)
-                MinSortedRangesTable[i].Scheme = Scheme.DetermineRangeScheme(leftDistance, rightDistance, Parameters.dLeftRangeCriteria);
+            if (GetNearestDiscoveredPeaks(peaks, ref leftNeighbor, MinSortedRangesTable[nList - 1].Pos, ref rightNeighbor))
+            {
+                leftDistance = MinSortedRangesTable[i].Pos - leftNeighbor; ;
+                rightDistance = rightNeighbor - MinSortedRangesTable[i].Pos;
+                if (MinSortedRangesTable[i].Scheme == null)
+                    MinSortedRangesTable[i].Scheme = Scheme.DetermineRangeScheme(leftDistance, rightDistance, Parameters.dLeftRangeCriteria);
+            }
+            else
+            {
+                leftDistance = MinSortedRangesTable[i].Pos - MinSortedRangesTable[i - 1].Pos; ;
+                rightDistance = MinSortedRangesTable[i + 1].Pos - MinSortedRangesTable[i].Pos;
+                if (MinSortedRangesTable[i].Scheme == null)
+                    MinSortedRangesTable[i].Scheme = Scheme.DetermineRangeScheme(leftDistance, rightDistance, Parameters.dLeftRangeCriteria);
+            }
         }
 
         RangesTable.Clear();
@@ -962,6 +1003,40 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
 
             RangesTable.Add(newSortedRangesTable);
         }
+    }
+
+    private bool GetNearestDiscoveredPeaks(List<Vector3> peaks, ref double left, double current, ref double right)
+    {
+        //Assume in order, so first to be greater or equal
+        //Also, assume pos (peak value) should be exactly the same
+        int j = peaks.Count();
+        for (int i = 0; i < j; i++)
+        {
+            if (peaks[i].X >= (float)current)
+            {
+                switch (i, j)
+                {
+                    //first
+                    case (0, >1):
+                        left = (double)values!.Values[0].X;
+                        right = (double)peaks[1].X;
+                        return true;
+                        //break;
+                    //last
+                    case (>0, >0) when i == j-1:
+                        left = (double)peaks[i-1].X;
+                        right = (double)values!.Values.Last().X;
+                        return true;
+                        //break;
+                    default:
+                        left = (double)peaks[i-1].X;
+                        right = (double)peaks[i+1].X;
+                        return true;
+                        //break;
+                }
+            }
+        }
+        return false;
     }
 }
 
