@@ -1,8 +1,62 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿using System.Collections.ObjectModel;
+using System.ComponentModel.DataAnnotations;
+using System.Linq;
 using Cameca.CustomAnalysis.Interface;
+using System.ComponentModel;
+using System.Runtime.CompilerServices;
+using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace CustomMassRanging
 {
+    public class CompositionTableTotals : ObservableObject
+    {
+        private string name = "Totals:";
+        private double composition;
+        private double counts;
+        private double net;
+        private double bgd;
+        private double tail;
+        public void Clear()
+        {
+            Composition = 0.0d;
+            Counts = 0.0d;
+            Net = 0.0d;
+            Bgd = 0.0d;
+            Tail = 0.0d;
+        }
+
+        // This private/public lower/upper case construction send the INotify with the SetProperty call--makes them observable
+        public string Name
+        {
+            get => name;
+            set => SetProperty(ref name, value);
+        }
+        public double Composition
+        {
+            get => composition;
+            set => SetProperty(ref composition, value);
+        }
+        public double Counts
+        {
+            get => counts;
+            set => SetProperty(ref counts, value);
+        }
+        public double Net
+        {
+            get => net;
+            set => SetProperty(ref net, value);
+        }
+        public double Bgd
+        {
+            get => bgd;
+            set => SetProperty(ref bgd, value);
+        }
+        public double Tail
+        {
+            get => tail;
+            set => SetProperty(ref tail, value);
+        }
+    }
     public class CompositionTableEntries
     {
         //Programming note:  The below was written for a standard controls:table.  This table is now a DataGrid and all the attributes are controlled in the XAML
@@ -56,6 +110,16 @@ namespace CustomMassRanging
         [Display(Name = "BgdSigma", AutoGenerateField = true, Description = "Ion Background Sigma^2 Total", GroupName = "Composition")]
         public double BgdSigma2 { get; set; } = 0.0d;
 
+        public CompositionTableEntries()
+        {
+            Name = "Totals:";
+            Formula = new IonFormula(Enumerable.Empty<IonFormula.Component>());
+            Composition = 0.0d;
+            Counts = 0.0d;
+            Net = 0.0d;
+            Bgd = 0.0d;
+            Tail = 0.0d;
+        }
         public CompositionTableEntries(string name, IonFormula formula, double net, double counts, double bgd, double sigma2, double tail = 0.0d)
         {
             Name = name;
@@ -94,6 +158,27 @@ namespace CustomMassRanging
             Tail += ionicCompositionTableEntries.Tail;
             //BgdSigma2 includes total of ranges and tails
             BgdSigma2 += ionicCompositionTableEntries.BgdSigma2;
+        }
+        public void SubtractFromThisEntry(CompositionTableEntries ionicCompositionTableEntries)
+        {
+            //Counts should be only counts from normal ranging
+            Counts -= ionicCompositionTableEntries.Counts;
+            //Net will include ranges and tails
+            Net -= ionicCompositionTableEntries.Net;
+            //Bgd is only the bgd for the ranges
+            Bgd -= ionicCompositionTableEntries.Bgd;
+            //Tail is the total net tail
+            Tail -= ionicCompositionTableEntries.Tail;
+            //BgdSigma2 includes total of ranges and tails
+            BgdSigma2 -= ionicCompositionTableEntries.BgdSigma2;
+        }
+        public void Clear()
+        {
+            Composition = 0.0d;
+            Counts = 0.0d;
+            Net = 0.0d;
+            Bgd = 0.0d;
+            Tail = 0.0d;
         }
     }
 }

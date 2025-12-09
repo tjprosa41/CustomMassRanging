@@ -27,7 +27,6 @@
     <utilities:ButtonOverlayControl ButtonContent="Update"
                                    ButtonCommand="{Binding UpdateCommand}"
                                    OverlayVisibility="{Binding UpdateCommandCanExecute, Converter={StaticResource BooleanToVisibilityConverter}}">
-        <!--Main content here-->
 
         <!--Grid is one of the most flexible layout controls-->
         <Grid>
@@ -38,6 +37,7 @@
                 <RowDefinition Height="*" />
                 <!--Auto uses as much space as necessary to fit the control in that row/column-->
                 <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
@@ -46,33 +46,24 @@
                 <ColumnDefinition Width="130" />
             </Grid.ColumnDefinitions>
 
-<!-- Pre-tab Chart2D
-            <controls:Chart2D x:Name="MassHistogramChart2D"
-                              Grid.Row="0"
-                              Grid.Column="0"
-                              Grid.RowSpan="3"
-                              DataSource="{Binding HistogramData}"
-                              AxisXLabel="Mass to Charge Ratio (Da)"
-                              AxisYLabel="Counts"
-                              IsLogScaleY="True" />
--->
-            
-            <Grid Grid.Row="0" Grid.RowSpan="3" Grid.Column="0">
+            <!-- Tab Region -->
+            <Grid Grid.Row="0" Grid.RowSpan="4" Grid.Column="0">
                 <TabControl Name="Tabcontrol" Margin=" 5" SelectedIndex="0">
-                    
+
+                    <!-- Mass Histogram IsLegendVisible="True"-->
                     <TabItem Header="Mass Histogram" Opacity="1" Name="MassHistogram">
                         <controls:Chart2D x:Name="MassHistogramChart2D"
                             DataSource="{Binding HistogramData}"
                             AxisXLabel="Mass to Charge Ratio (Da)"
                             AxisYLabel="Counts"
                             IsLogScaleY="True" 
-                        
+           
                         ViewportLower="{Binding Parameters.ViewportLower, Mode=TwoWay}"
                         ViewportUpper="{Binding Parameters.ViewportUpper, Mode=TwoWay}"/>
                        
                     </TabItem>
 
-                    <!--
+                    <!-- Simple composition table
                     <TabItem Header="Ionic Composition" Opacity="1" Name="IonicComposition">
                         <controls:Table x:Name="Ionic"
                             AutoWidth="True"
@@ -83,217 +74,308 @@
                     </TabItem>
                     -->
 
+                    <!-- Ionic Composition -->
                     <TabItem Header="Ionic Composition" Opacity="1" Name="IonicComposition">
-                        <!-- DataGrid: Gain copy/paste and other custom things -->
-                        <DataGrid 
-                            Name="IonicCompositionTable"
-                            ItemsSource="{Binding IonicCompositionTable}"
-                            Width="Auto"
-                            AutoGenerateColumns="False"
-                            Background="White"
-                            HorizontalGridLinesBrush="LightGray"
-                            VerticalGridLinesBrush="LightGray"
-                            IsReadOnly="True">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <!--Star takes up as much space as possible of the remaining layout-->
+                                <!--Auto uses as much space as necessary to fit the control in that row/column-->
+                                <RowDefinition Height="*" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
 
-                            <DataGrid.Resources>
-                                <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#deecf9"/>
-                                <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="Black"/>
-                                <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}" Color="#eff6fc"/>
-                                <Style x:Key="NumericTextBlock" TargetType="TextBlock">
-                                    <Setter Property="TextAlignment" Value="Right" />
-                                </Style>
-                                <Style x:Key="StringCenter" TargetType="TextBlock">
-                                    <Setter Property="TextAlignment" Value="Center" />
-                                </Style>
-                            </DataGrid.Resources>
+                            <!-- Ionic Composition Table via DataGrid: Gain copy/paste and other custom things -->
+                            <DataGrid 
+                                Name="IonicCompositionTable"
+                                ItemsSource="{Binding IonicCompositionTable}"
+                                HorizontalAlignment="Right"
+                                VerticalScrollBarVisibility="Visible"
+                                Grid.Row="0"
+                                Grid.Column="0"
+                                Grid.ColumnSpan="8"
+                                Width="Auto"
+                                AutoGenerateColumns="False"
+                                Background="White"
+                                HorizontalGridLinesBrush="LightGray"
+                                VerticalGridLinesBrush="LightGray"
+                                IsReadOnly="True">
 
-                            <DataGrid.CellStyle>
-                                <Style TargetType="DataGridCell">
-                                    <Setter Property="Padding" Value="2" />
-                                    <Setter Property="Template">
-                                        <Setter.Value>
-                                            <ControlTemplate TargetType="DataGridCell">
-                                                <Border Padding="{TemplateBinding Padding}"
+                                <DataGrid.Resources>
+                                    <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#deecf9"/>
+                                    <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="Black"/>
+                                    <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}" Color="#eff6fc"/>
+                                    <Style x:Key="NumericTextBlock" TargetType="TextBlock">
+                                        <Setter Property="TextAlignment" Value="Right" />
+                                    </Style>
+                                    <Style x:Key="StringCenter" TargetType="TextBlock">
+                                        <Setter Property="TextAlignment" Value="Center" />
+                                    </Style>
+                                </DataGrid.Resources>
+
+                                <DataGrid.CellStyle>
+                                    <Style TargetType="DataGridCell">
+                                        <Setter Property="Padding" Value="2" />
+                                        <Setter Property="Template">
+                                            <Setter.Value>
+                                                <ControlTemplate TargetType="DataGridCell">
+                                                    <Border Padding="{TemplateBinding Padding}"
                                                 BorderBrush="{TemplateBinding BorderBrush}"
                                                 BorderThickness="{TemplateBinding BorderThickness}"
                                                 Background="{TemplateBinding Background}"
                                                 SnapsToDevicePixels="True">
-                                                    <ContentPresenter SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}" />
-                                                </Border>
-                                            </ControlTemplate>
-                                        </Setter.Value>
-                                    </Setter>
-                                </Style>
-                            </DataGrid.CellStyle>
+                                                        <ContentPresenter SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}" />
+                                                    </Border>
+                                                </ControlTemplate>
+                                            </Setter.Value>
+                                        </Setter>
+                                    </Style>
+                                </DataGrid.CellStyle>
+                                
+                                <!-- Totals -->
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn IsReadOnly="True" Width="*" Header="Ion"            Binding="{Binding Name, Mode=OneWay}" ElementStyle="{StaticResource StringCenter}">
+                                        <DataGridTextColumn.HeaderStyle>
+                                            <Style TargetType="{x:Type DataGridColumnHeader}">
+                                                <Setter Property="HorizontalContentAlignment" Value="Center"/>
+                                            </Style>
+                                        </DataGridTextColumn.HeaderStyle>
+                                    </DataGridTextColumn>
+                                    <DataGridTextColumn IsReadOnly="True" Width="*" Header="Composition"    Binding="{Binding CompositionString, Mode=OneWay}" ElementStyle="{StaticResource StringCenter}">
+                                        <DataGridTextColumn.HeaderStyle>
+                                            <Style TargetType="{x:Type DataGridColumnHeader}">
+                                                <Setter Property="HorizontalContentAlignment" Value="Center"/>
+                                            </Style>
+                                        </DataGridTextColumn.HeaderStyle>
+                                    </DataGridTextColumn>
+                                    <DataGridTextColumn IsReadOnly="True" Width="*" Header="Sigma/DT (95% CL)"  Binding="{Binding SigmaString, Mode=OneWay}" ElementStyle="{StaticResource StringCenter}">
+                                        <DataGridTextColumn.HeaderStyle>
+                                            <Style TargetType="{x:Type DataGridColumnHeader}">
+                                                <Setter Property="ToolTip" Value="Composition Uncertainty or 95% Confidence Level Detection Threshold when Not Detected (ND, but would detect >95% of the time when concentration exceeds this value.)." />
+                                                <Setter Property="HorizontalContentAlignment" Value="Center"/>
+                                            </Style>
+                                        </DataGridTextColumn.HeaderStyle>
+                                    </DataGridTextColumn>
+                                    <DataGridTextColumn IsReadOnly="True" Width="*" Header="Counts"         Binding="{Binding Counts, StringFormat=N0, Mode=OneWay}" ElementStyle="{StaticResource NumericTextBlock}">
+                                        <DataGridTextColumn.HeaderStyle>
+                                            <Style TargetType="{x:Type DataGridColumnHeader}">
+                                                <Setter Property="HorizontalContentAlignment" Value="Right"/>
+                                            </Style>
+                                        </DataGridTextColumn.HeaderStyle>
+                                    </DataGridTextColumn>
+                                    <DataGridTextColumn IsReadOnly="True" Width="*" Header="Background"     Binding="{Binding Bgd, StringFormat=N0, Mode=OneWay}" ElementStyle="{StaticResource NumericTextBlock}">
+                                        <DataGridTextColumn.HeaderStyle>
+                                            <Style TargetType="{x:Type DataGridColumnHeader}">
+                                                <Setter Property="HorizontalContentAlignment" Value="Right"/>
+                                            </Style>
+                                        </DataGridTextColumn.HeaderStyle>
+                                    </DataGridTextColumn>
+                                    <DataGridTextColumn IsReadOnly="True" Width="*" Header="Net"            Binding="{Binding Net, StringFormat=N0, Mode=OneWay}" ElementStyle="{StaticResource NumericTextBlock}">
+                                        <DataGridTextColumn.HeaderStyle>
+                                            <Style TargetType="{x:Type DataGridColumnHeader}">
+                                                <Setter Property="HorizontalContentAlignment" Value="Right"/>
+                                            </Style>
+                                        </DataGridTextColumn.HeaderStyle>
+                                    </DataGridTextColumn>
+                                    <DataGridTextColumn IsReadOnly="True" Width="*" Header="Tail"            Binding="{Binding Tail, StringFormat=N0, Mode=OneWay}" ElementStyle="{StaticResource NumericTextBlock}">
+                                        <DataGridTextColumn.HeaderStyle>
+                                            <Style TargetType="{x:Type DataGridColumnHeader}">
+                                                <Setter Property="HorizontalContentAlignment" Value="Right" />
+                                                <Setter Property="ToolTip" Value="Counts = Ranged Counts&#x0d;&#x0a;Background = Ranged Bgd&#x0d;&#x0a;Net = Cts - Bgd + Tail&#x0d;&#x0a;Tail = Estimated Net Tail" />
+                                            </Style>
+                                        </DataGridTextColumn.HeaderStyle>
+                                    </DataGridTextColumn>
+                                </DataGrid.Columns>
+                            </DataGrid>
 
-                            <DataGrid.Columns>
-                                <DataGridTextColumn IsReadOnly="True" Width="*" Header="Ion"            Binding="{Binding Name, Mode=OneWay}" ElementStyle="{StaticResource StringCenter}">
-                                    <DataGridTextColumn.HeaderStyle>
-                                        <Style TargetType="{x:Type DataGridColumnHeader}">
-                                            <Setter Property="HorizontalContentAlignment" Value="Center"/>
-                                        </Style>
-                                    </DataGridTextColumn.HeaderStyle>
-                                </DataGridTextColumn>
-                                <DataGridTextColumn IsReadOnly="True" Width="*" Header="Composition"    Binding="{Binding CompositionString, Mode=OneWay}" ElementStyle="{StaticResource StringCenter}">
-                                    <DataGridTextColumn.HeaderStyle>
-                                        <Style TargetType="{x:Type DataGridColumnHeader}">
-                                            <Setter Property="HorizontalContentAlignment" Value="Center"/>
-                                        </Style>
-                                    </DataGridTextColumn.HeaderStyle>
-                                </DataGridTextColumn>
-                                <DataGridTextColumn IsReadOnly="True" Width="*" Header="Sigma/DT (95% CL)"  Binding="{Binding SigmaString, Mode=OneWay}" ElementStyle="{StaticResource StringCenter}">
-                                    <DataGridTextColumn.HeaderStyle>
-                                        <Style TargetType="{x:Type DataGridColumnHeader}">
-                                            <Setter Property="ToolTip" Value="Composition Uncertainty or 95% Confidence Level Detection Threshold when Not Detected (ND, but would detect >95% of the time when concentration exceeds this value.)." />
-                                            <Setter Property="HorizontalContentAlignment" Value="Center"/>
-                                        </Style>
-                                    </DataGridTextColumn.HeaderStyle>
-                                </DataGridTextColumn>
-                                <DataGridTextColumn IsReadOnly="True" Width="*" Header="Counts"         Binding="{Binding Counts, StringFormat=N0, Mode=OneWay}" ElementStyle="{StaticResource NumericTextBlock}">
-                                    <DataGridTextColumn.HeaderStyle>
-                                        <Style TargetType="{x:Type DataGridColumnHeader}">
-                                            <Setter Property="HorizontalContentAlignment" Value="Right"/>
-                                        </Style>
-                                    </DataGridTextColumn.HeaderStyle>
-                                </DataGridTextColumn>
-                                <DataGridTextColumn IsReadOnly="True" Width="*" Header="Background"     Binding="{Binding Bgd, StringFormat=N0, Mode=OneWay}" ElementStyle="{StaticResource NumericTextBlock}">
-                                    <DataGridTextColumn.HeaderStyle>
-                                        <Style TargetType="{x:Type DataGridColumnHeader}">
-                                            <Setter Property="HorizontalContentAlignment" Value="Right"/>
-                                        </Style>
-                                    </DataGridTextColumn.HeaderStyle>
-                                </DataGridTextColumn>
-                                <DataGridTextColumn IsReadOnly="True" Width="*" Header="Net"            Binding="{Binding Net, StringFormat=N0, Mode=OneWay}" ElementStyle="{StaticResource NumericTextBlock}">
-                                    <DataGridTextColumn.HeaderStyle>
-                                        <Style TargetType="{x:Type DataGridColumnHeader}">
-                                            <Setter Property="HorizontalContentAlignment" Value="Right"/>
-                                        </Style>
-                                    </DataGridTextColumn.HeaderStyle>
-                                </DataGridTextColumn>
-                                <DataGridTextColumn IsReadOnly="True" Width="*" Header="Tail"            Binding="{Binding Tail, StringFormat=N0, Mode=OneWay}" ElementStyle="{StaticResource NumericTextBlock}">
-                                    <DataGridTextColumn.HeaderStyle>
-                                        <Style TargetType="{x:Type DataGridColumnHeader}">
-                                            <Setter Property="HorizontalContentAlignment" Value="Right" />
-                                            <Setter Property="ToolTip" Value="Counts = Ranged Counts&#x0d;&#x0a;Background = Ranged Bgd&#x0d;&#x0a;Net = Cts - Bgd + Tail&#x0d;&#x0a;Tail = Estimated Net Tail" />
-                                        </Style>
-                                    </DataGridTextColumn.HeaderStyle>
-                                </DataGridTextColumn>
-                            </DataGrid.Columns>
-                        </DataGrid>
+                            <!-- Totals -->
+                            <TextBlock Grid.Row="1" Grid.Column="0" HorizontalAlignment="Center" VerticalAlignment="Top" Text="{Binding IonicCompositionTotals.Name, Mode=OneWay}" />
+                            <TextBlock Grid.Row="1" Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Top" Text="{Binding IonicCompositionTotals.Composition, StringFormat=P1, Mode=OneWay}" />
+                            <TextBlock Grid.Row="1" Grid.Column="2" HorizontalAlignment="Center" VerticalAlignment="Top" >NA</TextBlock>
+                            <TextBlock Grid.Row="1" Grid.Column="3" HorizontalAlignment="Right" VerticalAlignment="Top" Text="{Binding IonicCompositionTotals.Counts,StringFormat=N0, Mode=OneWay}" />
+                            <TextBlock Grid.Row="1" Grid.Column="4" HorizontalAlignment="Right" VerticalAlignment="Top" Text="{Binding Path=IonicCompositionTotals.Bgd, StringFormat=N0, Mode=OneWay}" />
+                            <TextBlock Grid.Row="1" Grid.Column="5" HorizontalAlignment="Right" VerticalAlignment="Top" Text="{Binding Path=IonicCompositionTotals.Net, StringFormat=N0, Mode=OneWay}" />
+                            <TextBlock Grid.Row="1" Grid.Column="6" HorizontalAlignment="Right" VerticalAlignment="Top" Text="{Binding Path=IonicCompositionTotals.Tail, StringFormat=N0, Mode=OneWay}" />
+                            <TextBlock Grid.Row="1" Grid.Column="7" HorizontalAlignment="Right" VerticalAlignment="Top" Text="" Width="20" />
+                        </Grid>
                     </TabItem>
 
+                    <!-- Decomposed Composition -->
                     <TabItem Header="Decomposed Composition" Opacity="1" Name="DecomposedComposition">
-                        <!-- DataGrid: Gain copy/paste and other custom things -->
-                        <DataGrid 
-                            Name="DecomposedCompositionTable"
-                            ItemsSource="{Binding DecomposedCompositionTable}"
-                            HorizontalAlignment="Right"
-                            Width="Auto"
-                            AutoGenerateColumns="False"
-                            Background="White"
-                            HorizontalGridLinesBrush="LightGray"
-                            VerticalGridLinesBrush="LightGray"
-                            IsReadOnly="True">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <!--Star takes up as much space as possible of the remaining layout-->
+                                <!--Auto uses as much space as necessary to fit the control in that row/column-->
+                                <RowDefinition Height="*" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
 
-                            <DataGrid.Resources>
-                                <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#deecf9"/>
-                                <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="Black"/>
-                                <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}" Color="#eff6fc"/>
-                                <Style x:Key="NumericTextBlock" TargetType="TextBlock">
-                                    <Setter Property="TextAlignment" Value="Right" />
-                                </Style>
-                                <Style x:Key="StringCenter" TargetType="TextBlock">
-                                    <Setter Property="TextAlignment" Value="Center" />
-                                </Style>
-                            </DataGrid.Resources>
+                            <!-- Decomposition Table -->
+                            <!-- DataGrid: Gain copy/paste and other custom things -->
+                            <DataGrid 
+                                Name="DecomposedCompositionTable"
+                                ItemsSource="{Binding DecomposedCompositionTable}"
+                                HorizontalAlignment="Right"
+                                VerticalScrollBarVisibility="Visible"
+                                Grid.Row="0"
+                                Grid.Column="0"
+                                Grid.ColumnSpan="8"
+                                Width="Auto"
+                                AutoGenerateColumns="False"
+                                Background="White"
+                                HorizontalGridLinesBrush="LightGray"
+                                VerticalGridLinesBrush="LightGray"
+                                IsReadOnly="True">
 
-                            <DataGrid.CellStyle>
-                                <Style TargetType="DataGridCell">
-                                    <Setter Property="Padding" Value="2" />
-                                    <Setter Property="Template">
-                                        <Setter.Value>
-                                            <ControlTemplate TargetType="DataGridCell">
-                                                <Border Padding="{TemplateBinding Padding}"
-                                                BorderBrush="{TemplateBinding BorderBrush}"
-                                                BorderThickness="{TemplateBinding BorderThickness}"
-                                                Background="{TemplateBinding Background}"
-                                                SnapsToDevicePixels="True">
-                                                    <ContentPresenter SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}" />
-                                                </Border>
-                                            </ControlTemplate>
-                                        </Setter.Value>
-                                    </Setter>
-                                </Style>
-                            </DataGrid.CellStyle>
+                                <DataGrid.Resources>
+                                    <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#deecf9"/>
+                                    <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="Black"/>
+                                    <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}" Color="#eff6fc"/>
+                                    <Style x:Key="NumericTextBlock" TargetType="TextBlock">
+                                        <Setter Property="TextAlignment" Value="Right" />
+                                    </Style>
+                                    <Style x:Key="StringCenter" TargetType="TextBlock">
+                                        <Setter Property="TextAlignment" Value="Center" />
+                                    </Style>
+                                </DataGrid.Resources>
 
-                            <DataGrid.Columns>
-                                <DataGridTextColumn IsReadOnly="True" Width="*" Header="Element"            Binding="{Binding Name, Mode=OneWay}" ElementStyle="{StaticResource StringCenter}">
-                                    <DataGridTextColumn.HeaderStyle>
-                                        <Style TargetType="{x:Type DataGridColumnHeader}">
-                                            <Setter Property="HorizontalContentAlignment" Value="Center"/>
-                                        </Style>
-                                    </DataGridTextColumn.HeaderStyle>
-                                </DataGridTextColumn>
-                                <DataGridTextColumn IsReadOnly="True" Width="*" Header="Composition"    Binding="{Binding CompositionString, Mode=OneWay}" ElementStyle="{StaticResource StringCenter}">
-                                    <DataGridTextColumn.HeaderStyle>
-                                        <Style TargetType="{x:Type DataGridColumnHeader}">
-                                            <Setter Property="HorizontalContentAlignment" Value="Center"/>
-                                        </Style>
-                                    </DataGridTextColumn.HeaderStyle>
-                                </DataGridTextColumn>
-                                <DataGridTextColumn IsReadOnly="True" Width="*" Header="Sigma/DT (95% CL)"  Binding="{Binding SigmaString, Mode=OneWay}" ElementStyle="{StaticResource StringCenter}">
-                                    <DataGridTextColumn.HeaderStyle>
-                                        <Style TargetType="{x:Type DataGridColumnHeader}">
-                                            <Setter Property="ToolTip" Value="Composition Uncertainty or 95% Confidence Level Detection Threshold when Not Detected (ND, but would detect >95% of the time when concentration exceeds this value.)." />
-                                            <Setter Property="HorizontalContentAlignment" Value="Center"/>
-                                        </Style>
-                                    </DataGridTextColumn.HeaderStyle>
-                                </DataGridTextColumn>
-                                <DataGridTextColumn IsReadOnly="True" Width="*" Header="Counts"         Binding="{Binding Counts, StringFormat=N0, Mode=OneWay}" ElementStyle="{StaticResource NumericTextBlock}">
-                                    <DataGridTextColumn.HeaderStyle>
-                                        <Style TargetType="{x:Type DataGridColumnHeader}">
-                                            <Setter Property="HorizontalContentAlignment" Value="Right"/>
-                                        </Style>
-                                    </DataGridTextColumn.HeaderStyle>
-                                </DataGridTextColumn>
-                                <DataGridTextColumn IsReadOnly="True" Width="*" Header="Background"     Binding="{Binding Bgd, StringFormat=N0, Mode=OneWay}" ElementStyle="{StaticResource NumericTextBlock}">
-                                    <DataGridTextColumn.HeaderStyle>
-                                        <Style TargetType="{x:Type DataGridColumnHeader}">
-                                            <Setter Property="HorizontalContentAlignment" Value="Right"/>
-                                        </Style>
-                                    </DataGridTextColumn.HeaderStyle>
-                                </DataGridTextColumn>
-                                <DataGridTextColumn IsReadOnly="True" Width="*" Header="Net"            Binding="{Binding Net, StringFormat=N0, Mode=OneWay}" ElementStyle="{StaticResource NumericTextBlock}">
-                                    <DataGridTextColumn.HeaderStyle>
-                                        <Style TargetType="{x:Type DataGridColumnHeader}">
-                                            <Setter Property="HorizontalContentAlignment" Value="Right"/>
-                                        </Style>
-                                    </DataGridTextColumn.HeaderStyle>
-                                </DataGridTextColumn>
-                                <DataGridTextColumn IsReadOnly="True" Width="*" Header="Tail"            Binding="{Binding Tail, StringFormat=N0, Mode=OneWay}" ElementStyle="{StaticResource NumericTextBlock}">
-                                    <DataGridTextColumn.HeaderStyle>
-                                        <Style TargetType="{x:Type DataGridColumnHeader}">
-                                            <Setter Property="HorizontalContentAlignment" Value="Right" />
-                                            <Setter Property="ToolTip" Value="Counts = Ranged Counts&#x0d;&#x0a;Background = Ranged Bgd&#x0d;&#x0a;Net = Cts - Bgd + Tail&#x0d;&#x0a;Tail = Estimated Net Tail" />
-                                        </Style>
-                                    </DataGridTextColumn.HeaderStyle>
-                                </DataGridTextColumn>
-                            </DataGrid.Columns>
-                        </DataGrid>
+                                <DataGrid.CellStyle>
+                                    <Style TargetType="DataGridCell">
+                                        <Setter Property="Padding" Value="2" />
+                                        <Setter Property="Template">
+                                            <Setter.Value>
+                                                <ControlTemplate TargetType="DataGridCell">
+                                                    <Border Padding="{TemplateBinding Padding}"
+                                            BorderBrush="{TemplateBinding BorderBrush}"
+                                            BorderThickness="{TemplateBinding BorderThickness}"
+                                            Background="{TemplateBinding Background}"
+                                            SnapsToDevicePixels="True">
+                                                        <ContentPresenter SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}" />
+                                                    </Border>
+                                                </ControlTemplate>
+                                            </Setter.Value>
+                                        </Setter>
+                                    </Style>
+                                </DataGrid.CellStyle>
+
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn IsReadOnly="True" Width="*" Header="Element"            Binding="{Binding Name, Mode=TwoWay}" ElementStyle="{StaticResource StringCenter}">
+                                        <DataGridTextColumn.HeaderStyle>
+                                            <Style TargetType="{x:Type DataGridColumnHeader}">
+                                                <Setter Property="HorizontalContentAlignment" Value="Center"/>
+                                            </Style>
+                                        </DataGridTextColumn.HeaderStyle>
+                                    </DataGridTextColumn>
+                                    <DataGridTextColumn IsReadOnly="True" Width="*" Header="Composition"    Binding="{Binding CompositionString, Mode=TwoWay}" ElementStyle="{StaticResource StringCenter}">
+                                        <DataGridTextColumn.HeaderStyle>
+                                            <Style TargetType="{x:Type DataGridColumnHeader}">
+                                                <Setter Property="HorizontalContentAlignment" Value="Center"/>
+                                            </Style>
+                                        </DataGridTextColumn.HeaderStyle>
+                                    </DataGridTextColumn>
+                                    <DataGridTextColumn IsReadOnly="True" Width="*" Header="Sigma/DT (95% CL)"  Binding="{Binding SigmaString, Mode=TwoWay}" ElementStyle="{StaticResource StringCenter}">
+                                        <DataGridTextColumn.HeaderStyle>
+                                            <Style TargetType="{x:Type DataGridColumnHeader}">
+                                                <Setter Property="ToolTip" Value="Composition Uncertainty or 95% Confidence Level Detection Threshold when Not Detected (ND, but would detect >95% of the time when concentration exceeds this value.)." />
+                                                <Setter Property="HorizontalContentAlignment" Value="Center"/>
+                                            </Style>
+                                        </DataGridTextColumn.HeaderStyle>
+                                    </DataGridTextColumn>
+                                    <DataGridTextColumn IsReadOnly="True" Width="*" Header="Counts"         Binding="{Binding Counts, StringFormat=N0, Mode=TwoWay}" ElementStyle="{StaticResource NumericTextBlock}">
+                                        <DataGridTextColumn.HeaderStyle>
+                                            <Style TargetType="{x:Type DataGridColumnHeader}">
+                                                <Setter Property="HorizontalContentAlignment" Value="Right"/>
+                                            </Style>
+                                        </DataGridTextColumn.HeaderStyle>
+                                    </DataGridTextColumn>
+                                    <DataGridTextColumn IsReadOnly="True" Width="*" Header="Background"     Binding="{Binding Bgd, StringFormat=N0, Mode=TwoWay}" ElementStyle="{StaticResource NumericTextBlock}">
+                                        <DataGridTextColumn.HeaderStyle>
+                                            <Style TargetType="{x:Type DataGridColumnHeader}">
+                                                <Setter Property="HorizontalContentAlignment" Value="Right"/>
+                                            </Style>
+                                        </DataGridTextColumn.HeaderStyle>
+                                    </DataGridTextColumn>
+                                    <DataGridTextColumn IsReadOnly="True" Width="*" Header="Net"            Binding="{Binding Net, StringFormat=N0, Mode=TwoWay}" ElementStyle="{StaticResource NumericTextBlock}">
+                                        <DataGridTextColumn.HeaderStyle>
+                                            <Style TargetType="{x:Type DataGridColumnHeader}">
+                                                <Setter Property="HorizontalContentAlignment" Value="Right"/>
+                                            </Style>
+                                        </DataGridTextColumn.HeaderStyle>
+                                    </DataGridTextColumn>
+                                    <DataGridTextColumn IsReadOnly="True" Width="*" Header="Tail"            Binding="{Binding Tail, StringFormat=N0, Mode=TwoWay}" ElementStyle="{StaticResource NumericTextBlock}">
+                                        <DataGridTextColumn.HeaderStyle>
+                                            <Style TargetType="{x:Type DataGridColumnHeader}">
+                                                <Setter Property="HorizontalContentAlignment" Value="Right" />
+                                                <Setter Property="ToolTip" Value="Counts = Ranged Counts&#x0d;&#x0a;Background = Ranged Bgd&#x0d;&#x0a;Net = Cts - Bgd + Tail&#x0d;&#x0a;Tail = Estimated Net Tail" />
+                                            </Style>
+                                        </DataGridTextColumn.HeaderStyle>
+                                    </DataGridTextColumn>
+                                </DataGrid.Columns>
+                            </DataGrid>
+
+                            <!-- Totals -->
+                            <TextBlock Grid.Row="1" Grid.Column="0" HorizontalAlignment="Center" VerticalAlignment="Top" Text="{Binding DecomposedCompositionTotals.Name}" />
+                            <TextBlock Grid.Row="1" Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Top" Text="{Binding Path=DecomposedCompositionTotals.Composition, StringFormat=P1}" />
+                            <TextBlock Grid.Row="1" Grid.Column="2" HorizontalAlignment="Center" VerticalAlignment="Top" >NA</TextBlock>
+                            <TextBlock Grid.Row="1" Grid.Column="3" HorizontalAlignment="Right" VerticalAlignment="Top" Text="{Binding Path=DecomposedCompositionTotals.Counts, StringFormat=N0}" />
+                            <TextBlock Grid.Row="1" Grid.Column="4" HorizontalAlignment="Right" VerticalAlignment="Top" Text="{Binding Path=DecomposedCompositionTotals.Bgd, StringFormat=N0}" />
+                            <TextBlock Grid.Row="1" Grid.Column="5" HorizontalAlignment="Right" VerticalAlignment="Top" Text="{Binding Path=DecomposedCompositionTotals.Net,  StringFormat=N0}" />
+                            <TextBlock Grid.Row="1" Grid.Column="6" HorizontalAlignment="Right" VerticalAlignment="Top" Text="{Binding Path=DecomposedCompositionTotals.Tail, StringFormat=N0}" />
+                            <TextBlock Grid.Row="1" Grid.Column="7" HorizontalAlignment="Right" VerticalAlignment="Top" Text="" Width="20" />
+                        </Grid>
+
+
+                    </TabItem>
+
+                    <!-- Multi Info -->
+                    <TabItem Header="Multi-hit Information" Opacity="1" Name="MultiInformation">
+                        <ScrollViewer HorizontalScrollBarVisibility="Visible">
+                            <TextBlock HorizontalAlignment="Left" VerticalAlignment="Top" FontFamily="Courier New"
+                                       Text="{Binding Path=MultisInformation, Mode=TwoWay}" />
+                        </ScrollViewer>
+                    </TabItem>
+
+                    <!-- Mass Histogram IsLegendVisible="True"-->
+                    <TabItem Header="Separation Plot" Opacity="1" Name="SepHistogram">
+                        <controls:Chart2D x:Name="SepHistogramChart2D"
+                            DataSource="{Binding SepHistogramData}"
+                            AxisXLabel="Separation (nm or mm)"
+                            AxisYLabel="Pairs"
+                            IsLogScaleY="True" />
                     </TabItem>
 
                 </TabControl>
             </Grid>
-            
-<!-- Old controls:Table  Give up tool tips.
-        <controls:Table x:Name="Ranges"
+                
+            <!-- Old controls:Table  Give up tool tips.
+                <controls:Table x:Name="Ranges"
                             AutoWidth="True"
                             Grid.Row="0"
                             Grid.Column="1"
                             Grid.ColumnSpan="2"
                             ItemsSource="{Binding RangesTable}" />
--->
+            -->
 
+            <!-- RangeTable -->
             <!-- DataGrid: Gain copy/paste and other custom things -->
             <DataGrid 
                 Grid.Column="1"
@@ -381,12 +463,14 @@
                 
             </DataGrid>
 
+            <!-- Parameters Table -->
             <controls:PropertyGrid x:Name="Parameters"
                             Grid.Row="1"
                             Grid.Column="1"
                             Grid.ColumnSpan="3"
                             SelectedObject="{Binding Parameters}" />
 
+            <!-- Buttons -->
             <Button x:Name="Rerange"
                     Grid.Row="2"
                     Grid.Column="1"
@@ -408,9 +492,16 @@
                     Width="50" Height="24" Padding="1"
                     Command="{Binding HelpCommand}" />
 
+            <Button x:Name="ProcessMultis"
+                    Grid.Row="3"
+                    Grid.Column="2"
+                    Content="Process Multis"
+                    Width="100" Height="24" Padding="1"
+                    Command="{Binding ProcessMultisCommand}" />
+
             <GridSplitter Grid.Column="1" 
                       Grid.Row="0"
-                      Grid.RowSpan="3"
+                      Grid.RowSpan="4"
                       VerticalAlignment="Stretch" 
                       HorizontalAlignment="Left" 
                       Margin="0" 

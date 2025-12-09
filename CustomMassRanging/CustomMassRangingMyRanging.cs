@@ -31,18 +31,23 @@ namespace CustomMassRanging
             return (int)Math.Round((pos - StartPos) / BinWidth);
         }
 
+        // This is called and the range max is checked
+        // If max is outside Values, then return max so it fails range check later
         public float FindLocalMax(double min, double max)
         {
             int start = GetIndex((float)min);
             int stop = GetIndex((float)max);
             float maxValue = 0.0f;
-            float maxPos = 0.0f;
-            for (int i = start; i <= stop; i++)
+            float maxPos = (float)max;            
+            if (stop < Values.Length)
             {
-                if (Values[i].Y > maxValue)
+                for (int i = start; i <= stop; i++)
                 {
-                    maxValue = Values[i].Y;
-                    maxPos = Values[i].X;
+                    if (Values[i].Y > maxValue)
+                    {
+                        maxValue = Values[i].Y;
+                        maxPos = Values[i].X;
+                    }
                 }
             }
             return maxPos;
@@ -104,6 +109,10 @@ namespace CustomMassRanging
             return total;
         }
 
+        //This function will start with left, right and no shift and get the net
+        //It will continue to shift along one direction until net no longer increases
+        //This shift with max net is returned
+        //Modifed so that shift is not larger than (right-left)/2
         public double NetMax(RangeScheme? scheme, int left, int right, ref int shift, ref double raw)
         {
             shift = 0;
@@ -124,6 +133,7 @@ namespace CustomMassRanging
                     while (netLeft > netMax)
                     {
                         shift--;
+                        //if (right + shift + shift <= left) break; //this will be at or outside boundary
                         raw = rawLeft;
                         netMax = netLeft;
                         rawLeft = Integrate(left, right, shift);
@@ -137,6 +147,7 @@ namespace CustomMassRanging
                     while (netRight > netMax)
                     {
                         shift++;
+                        //if (left + shift + shift >= right) break; //this will be at or outside boundary
                         raw = rawRight;
                         netMax = netRight;
                         rawRight = Integrate(left, right, shift);
@@ -159,6 +170,7 @@ namespace CustomMassRanging
                     while (netLeft > netMax)
                     {
                         shift--;
+                        //if (right + shift + shift <= left) break; //this will be at or outside boundary
                         raw = rawLeft;
                         netMax = netLeft;
                         rawLeft = Integrate(left, right, shift);
@@ -172,6 +184,7 @@ namespace CustomMassRanging
                     while (netRight > netMax)
                     {
                         shift++;
+                        //if (left + shift + shift >= right) break; //this will be at or outside boundary
                         raw = rawRight;
                         netMax = netRight;
                         rawRight = Integrate(left, right, shift);
@@ -194,6 +207,7 @@ namespace CustomMassRanging
                     while (netLeft > netMax)
                     {
                         shift--;
+                        //if (right + shift + shift <= left) break; //this will be at or outside boundary
                         raw = rawLeft;
                         netMax = netLeft;
                         rawLeft = Integrate(left, right, shift);
@@ -207,6 +221,7 @@ namespace CustomMassRanging
                     while (netRight > netMax)
                     {
                         shift++;
+                        //if (left + shift + shift >= right) break; //this will be at or outside boundary
                         raw = rawRight;
                         netMax = netRight;
                         rawRight = Integrate(left, right, shift);
@@ -218,9 +233,24 @@ namespace CustomMassRanging
             return netMax;
         }
 
+        // Take in dPos, RangeScheme, and parameters, and return...
+        // Returning newLeft, newRight, NetMax, raw, leftBgd, rightBgd
         public void DetermineRange(float dPos, RangeScheme? scheme, Parameters parameters, ref float newLeft, ref float newRight,
             ref double netMax, ref double raw, ref double leftBgd, ref double rightBgd)
         {
+            int startIndex = GetIndex(dPos);
+            // If Out of Range return dPos and zeros
+            if (startIndex >= Values.Length)
+            {
+                newLeft = dPos;
+                newRight = dPos;
+                netMax = 0f;
+                raw = 0f;
+                leftBgd = 0f;
+                rightBgd = 0f;
+                return;
+            }
+            
             //nBinsMin needs to be divisible by 4 to support half AND quarter ranging -- added factor that scales minimum width
             int nBinsMin = 0;
 
@@ -240,8 +270,8 @@ namespace CustomMassRanging
                     nBinsMin *= 4;
                 }
             }
+            
             int width = nBinsMin;
-            int startIndex = GetIndex(dPos);
             int left = startIndex - width / 2 + 1;
             int right = startIndex + width / 2;
             int shift = 0;
@@ -316,13 +346,29 @@ namespace CustomMassRanging
 
             //Go through entire mass spectrum and use minimum range width to see if there are statistically significant counts
             List<Vector3> peaks = new();
+
+            // factor is number of bins representing MinWidthFactor*MaxPeak
             float factor = (float)(parameters.dMinWidthFactor * parameters.dMaxPeakFWHunM) / BinWidth;
             float currentPos = GetPos(Length - 1);
+            
             //Need to accomodate for width at end of histogram and 1/2-range width
             //Also want to be even
-            int stopBinWidth = 2 * (int)(factor * Math.Sqrt(currentPos / MaxPos) * 1.5d / 2d) + 2;
+            //Estimating the width at the end of the histogram based on constant ToF widths, and fudged by 3x.
+            //This is scaled by factor (see above) and made even (2*int(/2)) and padded by 2.
+            //This turned out to fail on occasion, so that is why 3x fudge (1.5x was too small). 
+            int stopBinWidth = 2 * (int)(factor * Math.Sqrt(currentPos / MaxPos) * 3d / 2d) + 2;
             for (int left = GetIndex(0.8f); left < Length - stopBinWidth; left++)
-            {
+            {  
+                // Keep incrimenting the left edge for the search
+                // Width is defined by nBins
+                // Get net = raw - half-range bgd
+                // Find maxPoint within range
+                // Will define the peak position as being at this point
+                // Now we want to determine where to look next
+                //   One option is just left + nBins/2 (delta)
+                //   We've been using shift the range, but some want to pull it left not move right
+                //   So, we allow right shift only?
+
                 currentPos = GetPos(left);
                 int nBins = 2 * (int)(factor * Math.Sqrt(currentPos / MaxPos) / 2d) + 2;
                 if (nBins < 2 * MinBinPairs) nBins = 2 * MinBinPairs;
@@ -361,17 +407,19 @@ namespace CustomMassRanging
                             }
                         }
                     }
-                    //Now allow shift and find max integrated
                     int delta = nBins / 2;
                     int shift = 0;
                     double newRaw = 0d;
+                    // The shift could be beyond the range defined by maxPoint+-delta
                     double netMax = NetMax(RangeScheme.Half, maxPoint - delta, maxPoint + delta - 1, ref shift, ref newRaw);
                     double maxPos = GetPos(maxPoint);
                     double rightEdge = GetPos(left + nBins + shift);
                     if (max > (double)MinPeakMaxCounts)
                     {
+                        //-2.0f is the Y position in these plots defined by IVAS
                         peaks.Add(new Vector3(GetPos(maxPoint), -2.0f, (float)max));
-                        left = maxPoint + delta + shift - 1;
+                        left = maxPoint + delta - 1;
+                        if (shift > 0) left += shift;
                     }
                 }
             }

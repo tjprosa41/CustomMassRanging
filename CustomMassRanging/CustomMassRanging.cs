@@ -3,6 +3,7 @@ using System.Collections.Generic; //IEnumerable<>
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Diagnostics.Metrics;
 using System.IO;
 using System.Linq;
 using System.Numerics;
@@ -15,6 +16,13 @@ using System.Windows.Media;
 using Cameca.CustomAnalysis.Interface;
 using Cameca.CustomAnalysis.Utilities;
 using CommunityToolkit.Mvvm.Input;
+using System.Text;
+using System.Xml.Serialization;
+
+using CommunityToolkit.HighPerformance;
+using System.Fabric;
+using CommunityToolkit.Mvvm.ComponentModel;
+using System.ComponentModel.DataAnnotations;
 
 /// CustomMassRanging
 /// 
@@ -66,6 +74,8 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
     public float MaxIntensity { get; set; } = 0.0f;
     public float Resolution { get; set; } = 0.0f;
 
+    public ObservableCollection<IRenderData> SepHistogramData { get; } = new();
+
     //RangesTable is the displayed table (one being used for compositions)
     //StartTable contains the original imported ranges
     public ObservableCollection<RangesTableEntries> RangesTable { get; set; } = new();
@@ -73,7 +83,12 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
 
     //CompositionTable can be built after RangesTable has been updated
     public ObservableCollection<CompositionTableEntries> IonicCompositionTable { get; } = new();
+    public CompositionTableTotals IonicCompositionTotals { get; set; } = new(); 
     public ObservableCollection<CompositionTableEntries> DecomposedCompositionTable { get; } = new();
+    public CompositionTableTotals DecomposedCompositionTotals { get; set; } = new();
+
+    [Display(Name = "MultisInformation", AutoGenerateField = true, Description = "Multihit Information")]
+    public string MultisInformation { get; set; } = "";
 
     //values is the class that does all the processing of the coarsened mass spectrum
     public MyRanging? values;
@@ -125,7 +140,10 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
         RangesTable.Clear();
         StartTable.Clear();
         IonicCompositionTable.Clear();
+        IonicCompositionTotals.Clear();
         DecomposedCompositionTable.Clear();
+        DecomposedCompositionTotals.Clear();
+        SepHistogramData.Clear();
 
         // Check that we have a valid RangeManager (an analysis set with no mass spectrum node will return a null range manager)
         if (Resources.RangeManager is not { } rangeManager)
@@ -152,7 +170,7 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
             if (values is null)
             {
                 MessageBox.Show(
-                    "No values found. No ranges defined in original node.\n"+
+                    "No values found. No ranges defined in original node.\n" +
                     "Current implimentation modifies _existing_ range definitions.",
                     "Custom Analysis Error",
                     MessageBoxButton.OK,
@@ -186,7 +204,7 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
                 HistogramData.Add(histogramRenderData);
             }
         }
-        
+
         //Properties is an enherited observable from CustomMassRangignProperties -- this needs to be after making of plots
         Parameters.ResetParametersObservablesToPropertiesObservables(Properties);
 
@@ -228,6 +246,8 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
         }
 
         ISeriesRenderData series = Resources.ChartObjects.CreateSeries();
+        //series.IsLegendVisible = false;
+        //series.Name = "";
         series.Positions = peakPoints;  // Position data here
         series.MarkerColor = Colors.Blue;
         series.MarkerShape = MarkerShape.Triangle;
@@ -257,7 +277,7 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
                 foreach (var range in RangesTable)
                 {
                     if (range.Min <= range0.Pos && range.Max >= range0.Pos && range.Scheme != null)
-                    { 
+                    {
                         range0.Scheme = range.Scheme;
                         break;
                     }
@@ -299,7 +319,7 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
                 foreach (var range in RangesTable)
                 {
                     if (range.Min <= dummy.Pos && range.Max >= dummy.Pos && range.Scheme != null)
-                    { 
+                    {
                         dummy.Scheme = range.Scheme;
                         break;
                     }
@@ -388,7 +408,7 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
         await Resources.RangeManager.SetIonRanges(ionRanges);
     }
 
-    // A RerangeCommand property is generated that can be used to bind this action to the view
+    // A HelpCommand property is generated that can be used to bind this action to the view
     [RelayCommand]
     public async Task Help()
     {
@@ -406,6 +426,48 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
             UseShellExecute = true,
         };
         Process.Start(processStartInfo);
+    }
+
+    // A ProcessMultisCommand property is generated that can be used to bind this action to the view
+    [RelayCommand]
+    public async Task ProcessMultis()
+    {
+        await Task.Yield();
+
+        //Need to add some error code here
+        //Guid InstanceId = Services.IdProvider.Get(this);
+        //if (await Services.IonDataProvider.GetIonData(NodeId) is not { } ionData)
+        if (await Services.IonDataProvider.GetOwnerIonData(Id) is not { } ionData)
+            return;
+
+        var sectionInfo = new HashSet<string>(ionData.Sections.Keys);
+        if (!(IsIonDataValid(ionData)))
+            return;
+
+        //For debugging...
+        ObservableCollection<RangesTableEntries> useRanges = new();
+        foreach (var range in RangesTable)
+            if (range.Name == "Si") useRanges.Add(range);
+
+
+        MultiHits multiHits = new(ionData, values!.Values, useRanges, RangesTable, Parameters);
+        MultisInformation = String.Empty;
+        MultisInformation = multiHits.MultisSummaryString();
+
+        // Create the sep histogram data to be added to the chart in the view
+        Vector2[] sepPlot = new Vector2[MultiHits.NDistBins];
+        //distanceCorrelations[range1][dp][type 0=all, 1=non-same-same, 2=same-same][NDISTBINS]
+        for (int i = 0; i < MultiHits.NDistBins; i++)
+        {
+            sepPlot[i].X = (float)(i * MultiHits.DistRes);
+            sepPlot[i].Y = multiHits.dpDistanceCorrelations[1, 0, 2, i];
+        }  
+
+        var histogramRenderData = Resources.ChartObjects
+            .CreateHistogram(sepPlot, Colors.Black, name: "Range 1, dp=0, same-same");
+
+        // Adding to the SepHistogramData ObservableCollection notifies the bound Chart2D in the view to update with the plot data
+        SepHistogramData.Add(histogramRenderData);
     }
 
     private bool CheckForOverlappingRanges(bool tryResolveOverlapps)
@@ -466,7 +528,7 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
         }
         return false;
     }
-    
+
     private void AddAnyTailEstimates()
     {
         var MinSortedRangesTable = RangesTable.OrderBy(o => o.Pos).ToList();
@@ -655,7 +717,7 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
         {
             if (range.Name == "Discovered") continue; //Skip over any previously "Discovered" peaks
             RangesTableEntries rangesTableEntries = new(range);
-            StartTable.Add(rangesTableEntries); 
+            StartTable.Add(rangesTableEntries);
             RangesTable.Add(rangesTableEntries);
             RangesTable.Last().Pos = values?.FindLocalMax(range.Min, range.Max) ?? double.NaN;
             StartTable.Last().Pos = RangesTable.Last().Pos;
@@ -764,6 +826,7 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
         }
 
         //Compute compositions and errors
+        double Total_Composition = 0.0d;
         foreach (var entry in DecomposedCompositionTable)
         {
             if (entry.DT > 0.0d)
@@ -778,10 +841,16 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
                 double Bc = Total_Bgd - entry.Bgd;
                 entry.Sigma = Math.Sqrt((entry.Net + entry.BgdSigma2) * (Nc - Bc) * (Nc - Bc) + (Nc + Bc) * (entry.Net - entry.BgdSigma2) * (entry.Net - entry.BgdSigma2))
                     / Total_Net / Total_Net;
+                Total_Composition += entry.Composition;
             }
             CreateOutputString(entry);
         }
-
+        //CompositionTableEntries DecomposedCompositionTotals = new(Total_Composition, Total_Counts, Total_Net, Total_Bgd, Total_Tail);
+        DecomposedCompositionTotals.Composition = Total_Composition;
+        DecomposedCompositionTotals.Counts = Total_Counts;
+        DecomposedCompositionTotals.Net = Total_Net;
+        DecomposedCompositionTotals.Bgd = Total_Bgd;
+        DecomposedCompositionTotals.Tail = Total_Tail;
     }
 
     private void CreateOutputString(CompositionTableEntries entry)
@@ -904,6 +973,7 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
         }
 
         //Compute compositions and errors
+        double Total_Composition = 0.0d;
         foreach (var entry in IonicCompositionTable)
         {
             if (entry.DT > 0.0d)
@@ -918,13 +988,19 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
                 double Bc = Total_Bgd - entry.Bgd;
                 entry.Sigma = Math.Sqrt((entry.Net + entry.BgdSigma2) * (Nc - Bc) * (Nc - Bc) + (Nc + Bc) * (entry.Net - entry.BgdSigma2) * (entry.Net - entry.BgdSigma2))
                     / Total_Net / Total_Net;
+                Total_Composition += entry.Composition;
             }
             CreateOutputString(entry);
         }
+        IonicCompositionTotals.Composition = Total_Composition;
+        IonicCompositionTotals.Counts = Total_Counts;
+        IonicCompositionTotals.Net = Total_Net;
+        IonicCompositionTotals.Bgd = Total_Bgd;
+        IonicCompositionTotals.Tail = Total_Tail;
     }
 
     private void DetermineNewRanges(List<RangesTableEntries> MinSortedRangesTable, List<Vector3> peaks)
-    {   
+    {
         var nList = MinSortedRangesTable.Count();
 
         //List is sorted by Pos
@@ -952,7 +1028,7 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
             }
 
             //Last item
-            if (GetNearestDiscoveredPeaks(peaks, ref leftNeighbor, MinSortedRangesTable[nList-1].Pos, ref rightNeighbor))
+            if (GetNearestDiscoveredPeaks(peaks, ref leftNeighbor, MinSortedRangesTable[nList - 1].Pos, ref rightNeighbor))
             {
                 leftDistance = MinSortedRangesTable[nList - 1].Pos - leftNeighbor;
                 rightDistance = rightNeighbor - MinSortedRangesTable[nList - 1].Pos;
@@ -1017,20 +1093,20 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
                 switch (i, j)
                 {
                     //first
-                    case (0, >1):
+                    case (0, > 1):
                         left = (double)values!.Values[0].X;
                         right = (double)peaks[1].X;
                         return true;
-                        //break;
+                    //break;
                     //last
-                    case (>0, >0) when i == j-1:
-                        left = (double)peaks[i-1].X;
+                    case ( > 0, > 0) when i == j - 1:
+                        left = (double)peaks[i - 1].X;
                         right = (double)values!.Values.Last().X;
                         return true;
-                        //break;
+                    //break;
                     default:
-                        left = (double)peaks[i-1].X;
-                        right = (double)peaks[i+1].X;
+                        left = (double)peaks[i - 1].X;
+                        right = (double)peaks[i + 1].X;
                         return true;
                         //break;
                 }
@@ -1038,8 +1114,29 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
         }
         return false;
     }
-}
 
+    private bool IsIonDataValid(IIonData ionData)
+    {
+        var sectionInfo = new HashSet<string>(ionData.Sections.Keys);
+        string[] sections = { "pulse", "pulseDelta", "Mass", "Voltage", "Epos ToF", "Position", "Detector Coordinates" };
+        string errorString = "";
+        foreach (var section in sections)
+            if (!sectionInfo.Contains(section))
+                errorString += $"Missing section: {section}\n";
+
+        if (errorString != "")
+        {
+            MessageBox.Show(
+                errorString,
+                "Custom MultiHit Analysis Error",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+            return false;
+        }
+
+        return true;
+    }
+}
 public class Scheme
 {
     public static RangeScheme DetermineRangeScheme(double leftDistance, double rightDistance, double criteria)
