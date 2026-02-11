@@ -181,7 +181,7 @@ namespace CustomMassRanging
                     The remaining events in the multiple will be 0, 0
                     But this is not reliable for IVAS ROIs
 
-                    To get the precise pulse number of an ion the formula is:
+                    To get the precise pulse number for all ROI ions, the formula is:
                     double realPulse = (double)pulse + (double)pulseDelta;
                 */
 
@@ -604,10 +604,10 @@ namespace CustomMassRanging
                     Overview += "  Correlated:   Multi-hit ions that have seprations smaller than the critical value.\n";
                     Overview += "  Uncorrelated: Multi-hit ions that have sepratation larger than the critical value.\n";
                     Overview += "  Pseudo-multi: Consecutive sigle-ion events only, tracked for delta pulse (dp) values\n";
-                    Overview += "                out to some maximum dp separation value.\n";
+                    Overview += "                out to some maximum dp time/pulse separation value.\n";
                     Overview += "\n";
 
-            string CorrelatedTable = $"Correlated Multis Table All: dpMultis[,,0]\n{"",13}";
+            string CorrelatedTable = $"Correlated Multis Table All: dpMultis[First Ion,Second Ion,dp=0]\n{"",13}";
             for (int i = 0; i < N+3; i++)
                 CorrelatedTable += $"{rangeNames[i],13}";
             CorrelatedTable += "\n";
@@ -622,7 +622,7 @@ namespace CustomMassRanging
 
             string ConsideredRanges = $"Considered Ranges:         {N,5:N0}\n";
             for (int i = 0; i<rangeMins.Count(); i++)
-                ConsideredRanges += $"                           {rangeNames[i],7}: {rangeMins[i],7:N3} - {rangeMaxs[i],7:N3}\n";
+                ConsideredRanges += $"                       {i} {rangeNames[i],7}: {rangeMins[i],7:N3} - {rangeMaxs[i],7:N3}\n";
 
             string  Summary =  $"Total Defined Ranges:      {NTotal,5:N0}\n";
                     Summary += $"Key Range:                 {rangeNames[keyRange],7}: {rangeMins[keyRange],7:N3} - {rangeMaxs[keyRange],7:N3}\n";
@@ -659,7 +659,7 @@ namespace CustomMassRanging
             HregSummary += $"{(float)(dpHistogram[0] - totalWeighted)/norm,13:P2}";
             HregSummary += $"{(float)(hreg[0, 1] + dpHistogram[0])/norm,13:P0}";
 
-            HregSummary += "\n      Considered:          ";
+            HregSummary += "\n      Considered Events:          ";
             for (int i = 0; i < HREGMax; i++)
                 HregSummary += $"{hreg[i, 0],13:N0}";
             HregSummary += $"{totIonCounts[N + 2] - totIonCounts[N + 1] - totIonCounts[N],13:N0}";
@@ -700,11 +700,14 @@ namespace CustomMassRanging
             float SSp1 = (float)(getSSpConsideredTotal(dpCorMultis, 1));
             float SS1 = (float)(getSSConsideredTotal(dpCorMultis, 1));
             float SS0FractionDetected = SS0 / SSp0 * SSp1 / SS1;
+            Summary += "S=Same, S'=Not Same, 0: dp=0 or same pulse, 1: dp=1 or adjacent pulses\n";
             Summary += $"SS0:  {SS0,13:N0}\n";
             Summary += $"SS'0: {SSp0,13:N0}\n";
             Summary += $"SS1:  {SS1,13:N0}\n";
             Summary += $"SS'1: {SSp1,13:N0}\n";
             Summary += $"Corr: SS0/SS'0 / SS1/SS'1 = {SS0FractionDetected:P2}\n";
+            Summary += $"Correlated same-same/not-same ratio for same-pulse multis vs. psudo-multis\n";
+            Summary += $"(Deadtime affected/not deadtime affected same-pulse vs. same ratio with no deadtime effect)\n\n";
 
             SS0 = (float)(getSSConsideredTotal(dpUncMultis, 0));
             SSp0 = (float)(getSSpConsideredTotal(dpUncMultis, 0));
@@ -716,6 +719,9 @@ namespace CustomMassRanging
             Summary += $"SS1:  {SS1,13:N0}\n";
             Summary += $"SS'1: {SSp1,13:N0}\n";
             Summary += $"Uncorr: SS0/SS'0 / SS1/SS'1 = {SS0FractionDetected:P2}\n";
+            Summary += $"Uncorrelated same-same/not-same ratio for same-pulse multis vs. psudo-multis\n";
+            Summary += $"(mostly unaffected/not deadtime affected same-pulse vs. same ratio with no deadtime effect)\n";
+            Summary += $"(these are approximately predictable, governed mainly by Poisson statistics --> 100%)\n";
 
             return Overview + CorrelatedTable + Summary ;
         }

@@ -87,9 +87,9 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
     public ObservableCollection<CompositionTableEntries> DecomposedCompositionTable { get; } = new();
     public CompositionTableTotals DecomposedCompositionTotals { get; set; } = new();
 
-    [Display(Name = "MultisInformation", AutoGenerateField = true, Description = "Multihit Information")]
-    public string MultisInformation { get; set; } = "";
-
+    //[Display(Name = "MultisInformation", AutoGenerateField = true, Description = "Multihit Information")]
+    public MyViewableString MultisInformation { get; set; } = new();
+    
     //values is the class that does all the processing of the coarsened mass spectrum
     public MyRanging? values;
 
@@ -451,8 +451,8 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
 
 
         MultiHits multiHits = new(ionData, values!.Values, useRanges, RangesTable, Parameters);
-        MultisInformation = String.Empty;
-        MultisInformation = multiHits.MultisSummaryString();
+        MultisInformation.Value = String.Empty;
+        MultisInformation.Value = multiHits.MultisSummaryString();
 
         // Create the sep histogram data to be added to the chart in the view
         Vector2[] sepPlot = new Vector2[MultiHits.NDistBins];
@@ -466,8 +466,35 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
         var histogramRenderData = Resources.ChartObjects
             .CreateHistogram(sepPlot, Colors.Black, name: "Range 1, dp=0, same-same");
 
+        // Create the sep histogram data to be added to the chart in the view
+        Vector2[] sepPlot2 = new Vector2[MultiHits.NDistBins];
+        //distanceCorrelations[range1][dp][type 0=all, 1=non-same-same, 2=same-same][NDISTBINS]
+        for (int i = 0; i < MultiHits.NDistBins; i++)
+        {
+            sepPlot2[i].X = (float)(i * MultiHits.DistRes);
+            sepPlot2[i].Y = multiHits.dpDistanceCorrelations[0, 0, 2, i];
+        }
+
+        var histogramRenderData2 = Resources.ChartObjects
+            .CreateHistogram(sepPlot2, Colors.Red, name: "Range 0, dp=0, same-same");
+
+        // Create the sep histogram data to be added to the chart in the view
+        Vector2[] sepPlot3 = new Vector2[MultiHits.NDistBins];
+        //distanceCorrelations[range1][dp][type 0=all, 1=non-same-same, 2=same-same][NDISTBINS]
+        for (int i = 0; i < MultiHits.NDistBins; i++)
+        {
+            sepPlot3[i].X = (float)(i * MultiHits.DistRes);
+            sepPlot3[i].Y = multiHits.dpDistanceCorrelations[0, 0, 1, i];
+        }
+
+        var histogramRenderData3 = Resources.ChartObjects
+            .CreateHistogram(sepPlot3, Colors.Blue, name: "Range 0, dp=0, non-same-same");
+
         // Adding to the SepHistogramData ObservableCollection notifies the bound Chart2D in the view to update with the plot data
+        SepHistogramData.Clear(); //If not, then adds new one...good for multiple plots, just change color!
+        SepHistogramData.Add(histogramRenderData2);
         SepHistogramData.Add(histogramRenderData);
+        SepHistogramData.Add(histogramRenderData3);
     }
 
     private bool CheckForOverlappingRanges(bool tryResolveOverlapps)
@@ -1122,7 +1149,11 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
         string errorString = "";
         foreach (var section in sections)
             if (!sectionInfo.Contains(section))
+            {
+                errorString += "Note: Compatibility for ROI multi-hit processing\n";
+                errorString += "requires additional non-epos sections pulse and pulseDelta.\n";
                 errorString += $"Missing section: {section}\n";
+            }
 
         if (errorString != "")
         {
@@ -1158,4 +1189,14 @@ public enum RangeScheme
     Half,
     [EnumMember(Value = "Quarter")]
     Quarter,
+}
+
+public partial class MyViewableString : ObservableObject
+{
+    private string value = string.Empty;
+    public string Value
+    {
+        get => value;
+        set => SetProperty(ref this.value, value);
+    }
 }

@@ -33,6 +33,7 @@
 	<ItemGroup Label="Package Dependencies">
 		<PackageReference Include="Cameca.CustomAnalysis.Utilities" Version="4.0.0" />
 		<PackageReference Include="Microsoft.ServiceFabric" Version="10.1.2841" />
+		<PackageReference Include="System.Reactive" Version="6.1.0" />
 	</ItemGroup>
 
 	<ItemGroup>

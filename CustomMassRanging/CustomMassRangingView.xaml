@@ -350,13 +350,14 @@
                     <TabItem Header="Multi-hit Information" Opacity="1" Name="MultiInformation">
                         <ScrollViewer HorizontalScrollBarVisibility="Visible">
                             <TextBlock HorizontalAlignment="Left" VerticalAlignment="Top" FontFamily="Courier New"
-                                       Text="{Binding Path=MultisInformation, Mode=TwoWay}" />
+                                       Text="{Binding Path=MultisInformation.Value, Mode=OneWay}" />
                         </ScrollViewer>
                     </TabItem>
 
                     <!-- Mass Histogram IsLegendVisible="True"-->
                     <TabItem Header="Separation Plot" Opacity="1" Name="SepHistogram">
                         <controls:Chart2D x:Name="SepHistogramChart2D"
+                            IsLegendVisible="True"
                             DataSource="{Binding SepHistogramData}"
                             AxisXLabel="Separation (nm or mm)"
                             AxisYLabel="Pairs"
@@ -424,6 +425,17 @@
                 </DataGrid.CellStyle>
 
                 <DataGrid.Columns>
+                    <!--
+                    <DataGridCheckBoxColumn IsReadOnly="False" Width="*" Header="Multi">
+                        <DataGridCheckBoxColumn.HeaderStyle>
+                            <Style TargetType="{x:Type DataGridColumnHeader}">
+                                <Setter Property="ToolTip" Value="Use for multi-hit analysis" />
+                            </Style>
+                        </DataGridCheckBoxColumn.HeaderStyle>
+
+                    </DataGridCheckBoxColumn>
+                    -->
+                
                     <DataGridTemplateColumn>
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
@@ -442,11 +454,13 @@
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
+                   
                     <DataGridTextColumn IsReadOnly="True" Width="*" Header="Ion" Binding="{Binding Name, Mode=OneWay}" />
                     <DataGridTextColumn IsReadOnly="True" Width="*" Header="Peak (Da)" Binding="{Binding Pos, StringFormat=N3, Mode=OneWay}" ElementStyle="{StaticResource NumericTextBlock}" />
                     <DataGridTextColumn IsReadOnly="True" Width="*" Header="Min (Da)" Binding="{Binding Min, StringFormat=N3, Mode=OneWay}" ElementStyle="{StaticResource NumericTextBlock}" />
                     <DataGridTextColumn IsReadOnly="True" Width="*" Header="Max (Da)" Binding="{Binding Max, StringFormat=N3, Mode=OneWay}" ElementStyle="{StaticResource NumericTextBlock}" />
                     <DataGridTextColumn IsReadOnly="True" Width="*" Header="Counts" Binding="{Binding Counts, StringFormat=N0, Mode=OneWay}" ElementStyle="{StaticResource NumericTextBlock}" />
+                    
                     <DataGridComboBoxColumn IsReadOnly="False" Width="*" Header="Scheme" 
                                             SelectedItemBinding="{Binding Scheme, Mode=TwoWay}" 
                                             ItemsSource="{Binding Source={StaticResource myEnum}}" 

@@ -34,6 +34,7 @@ namespace CustomMassRanging
             Net = net;
             Counts = counts;
             Scheme = scheme;
+
             CalculateBgdLineCoordinates(scheme, leftBgd, rightBgd, leftDelta);
 
             //Quarter ranges have larger background sigma for error propogation
