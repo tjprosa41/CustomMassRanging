@@ -115,6 +115,44 @@ namespace CustomMassRanging
         public int iMinPeakMaxCounts = 3;
 
         [ObservableProperty]
+        [field: Display(Name = "Key Range", GroupName = "Multi-Hit Parameters",
+            Description = "Name of range to compute ToF and Voltage metrics\n" +
+              "(format: XX.X-XX range position to 0.1 Da precision '-' chemical abbreviation).")]
+        public string sKeyRange = "";
+
+        [ObservableProperty]
+        [field: Display(Name = "Separation Criteria", GroupName = "Multi-Hit Parameters",
+            Description = "Separation defining the cut-off for correlated vs. uncorellated events\n" +
+                          "(nm or mm based on Use Detector Separation flag).")]
+        public double dSeparationCriteria = 8d;
+
+        [ObservableProperty]
+        [field: Display(Name = "Use Detector Separations", GroupName = "Multi-Hit Parameters",
+            Description = "Ion separation distances based on detector units or reconstructed\n" +
+                          "units (mm or nm).")]
+        public bool bUseDetectorSeparations = false;
+
+        [ObservableProperty]
+        [field: Display(Name = "Pseudo-Multi Max dp", GroupName = "Multi-Hit Parameters",
+            Description = "Use dp pulse separations from 1 to Max.\n")]
+        public int iPseudoMultiMaxdp = 5;
+
+        [ObservableProperty]
+        [field: Display(Name = "Scaling", GroupName = "Multi-Hit Parameters",
+            Description = "Scale all SepPlots based on selection.\n")]
+        public EScaling eSepPlotScaling = EScaling.None;
+
+        [ObservableProperty]
+        [field: Display(Name = "Plots List", GroupName = "Multi-Hit Parameters",
+            Description = "Groups of plots to display based on selection.\n")]
+        public EPlots ePlotsList = EPlots.MultisOnly;
+
+        [ObservableProperty]
+        [field: Display(Name = "Sep Plots Include", GroupName = "Multi-Hit Parameters",
+            Description = "Types of ions to be used in separation plot histograms.\n")]
+        public EIons eSepPlots = EIons.Selected;
+
+        [ObservableProperty]
         [field: Display(Name = "Viewport Lower Vector2", AutoGenerateField = false, GroupName = "Display Properties")]
         public Vector2 viewportLower;
 
@@ -137,14 +175,7 @@ namespace CustomMassRanging
         [ObservableProperty]
         [field: Display(Name = "Viewport Upper Y", AutoGenerateField = false, GroupName = "Display Properties")]
         public float upperY;
-
-        /*
-        //See enum example below
-        [ObservableProperty]
-        [field: Display(Name = "Enum Property (type ExampleEnum)", GroupName = "")]
-        private ExampleEnum parameter4;
-        */
-
+        
         public void ResetParametersObservablesToPropertiesObservables(CustomMassRangingProperties properties)
         {
             //Caps are the Observable versions
@@ -168,6 +199,13 @@ namespace CustomMassRanging
             DTailRangeMaximum = properties.DTailRangeMaximum;
             IMinBinPairs = properties.IMinBinPairs;
             IMinPeakMaxCounts = properties.IMinPeakMaxCounts;
+            SKeyRange = properties.SKeyRange;
+            DSeparationCriteria = properties.DSeparationCriteria;
+            BUseDetectorSeparations = properties.BUseDetectorSeparations;
+            IPseudoMultiMaxdp = properties.IPseudoMultiMaxdp; 
+            ESepPlotScaling = properties.ESepPlotScaling;
+            EPlotsList = properties.EPlotsList;
+            ESepPlots = properties.ESepPlots;
 
             //Quirk if no change in viewport, then reset to unzoomed, so add a little change
             if (properties.ViewportLower == ViewportLower)
@@ -190,13 +228,37 @@ namespace CustomMassRanging
     }
 
     // Example of using an enum to define options that can populate a dropdown box.
-    public enum ExampleEnum
+    public enum EScaling
     {
-        [Display(Name = "Selection 1")]
-        Selection1,
-        [Display(Name = "Selection 2")]
-        Selection2,
-        [Display(Name = "Selection 3")]
-        Selection3,
+        [Display(Name = "None")]
+        None,
+        [Display(Name = "Max Uncorrelated")]
+        MaxUncorr,
+        [Display(Name = "Integrated Uncorrelated")]
+        IntUncorr
+    }
+    public enum EPlots
+    {
+        [Display(Name = "Multis Only")]
+        MultisOnly,
+        [Display(Name = "Pseudos Only")]
+        PseudosOnly,
+        [Display(Name = "Both")]
+        Both,
+        [Display(Name = "Multis Only !All")]
+        MultisOnlyNotAll,
+        [Display(Name = "Pseudos Only !All")]
+        PseudosOnlyNotAll,
+        [Display(Name = "Both !All")]
+        BothNotAll
+    }
+    public enum EIons
+    {
+        [Display(Name = "Selected")]
+        Selected,
+        [Display(Name = "Selected & Other Ranged")]
+        SelectedAndOthers,
+        [Display(Name = "All")]
+        All
     }
 }

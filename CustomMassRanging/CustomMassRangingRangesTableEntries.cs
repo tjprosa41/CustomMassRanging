@@ -14,6 +14,7 @@ namespace CustomMassRanging
         // https://learn.microsoft.com/en-us/dotnet/standard/base-types/custom-numeric-format-strings
         // https://learn.microsoft.com/en-us/dotnet/desktop/winforms/controls/how-to-add-tables-and-columns-to-the-windows-forms-datagrid-control?view=netframeworkdesktop-4.8
 
+        public bool MultiUse { get; set; } = false;
         public double Pos { get; set; } = 0.0d;
         public double Bgd { get; set; } = 0.0d;
         public double BgdSigma2 { get; set; } = 0.0d;
@@ -25,10 +26,11 @@ namespace CustomMassRanging
         public Vector3[] LineCoordinates { get; set; } = new Vector3[POINTS];
 
         //Need to keep track of left and right backgroud seperately to make background lines
-        public RangesTableEntries(string name, double pos, double net, double counts, IonFormula ionFormula, double volume, double min, double max,
+        public RangesTableEntries(string name, bool multiUse, double pos, double net, double counts, IonFormula ionFormula, double volume, double min, double max,
             RangeScheme? scheme, System.Windows.Media.Color color, double leftBgd, double rightBgd, double leftDelta = 0)
             : base(name, ionFormula, volume, min, max, color)
         {
+            MultiUse = multiUse;
             Pos = pos;
             Bgd = leftBgd + rightBgd;
             Net = net;

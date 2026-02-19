@@ -36,8 +36,8 @@
                 <!--Star takes up as much space as possible of the remaining layout-->
                 <RowDefinition Height="*" />
                 <!--Auto uses as much space as necessary to fit the control in that row/column-->
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
+                <RowDefinition Height="28" />
+                <RowDefinition Height="28" />
             </Grid.RowDefinitions>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
@@ -349,8 +349,8 @@
                     <!-- Multi Info -->
                     <TabItem Header="Multi-hit Information" Opacity="1" Name="MultiInformation">
                         <ScrollViewer HorizontalScrollBarVisibility="Visible">
-                            <TextBlock HorizontalAlignment="Left" VerticalAlignment="Top" FontFamily="Courier New"
-                                       Text="{Binding Path=MultisInformation.Value, Mode=OneWay}" />
+                            <TextBox HorizontalAlignment="Left" VerticalAlignment="Top" FontFamily="Courier New"
+                                       Text="{Binding Path=MultisInformation.Value, Mode=OneWay}"/>
                         </ScrollViewer>
                     </TabItem>
 
@@ -425,8 +425,8 @@
                 </DataGrid.CellStyle>
 
                 <DataGrid.Columns>
-                    <!--
-                    <DataGridCheckBoxColumn IsReadOnly="False" Width="*" Header="Multi">
+                    
+                    <DataGridCheckBoxColumn IsReadOnly="False" Width="*" Header="Multi" Binding="{Binding MultiUse}">
                         <DataGridCheckBoxColumn.HeaderStyle>
                             <Style TargetType="{x:Type DataGridColumnHeader}">
                                 <Setter Property="ToolTip" Value="Use for multi-hit analysis" />
@@ -434,7 +434,7 @@
                         </DataGridCheckBoxColumn.HeaderStyle>
 
                     </DataGridCheckBoxColumn>
-                    -->
+                    
                 
                     <DataGridTemplateColumn>
                         <DataGridTemplateColumn.CellTemplate>
@@ -489,29 +489,36 @@
                     Grid.Row="2"
                     Grid.Column="1"
                     Content="Rerange"
-                    Width="50" Height="24" Padding="1"
+                    Width="100" Height="24" Padding="1"
                     Command="{Binding RerangeCommand}" />
 
-            <Button x:Name="Apply"
+            <Button x:Name="ProcessMultis"
                     Grid.Row="2"
                     Grid.Column="2"
-                    Content="Apply"
-                    Width="50" Height="24" Padding="1"
-                    Command="{Binding ApplyRangeChangesCommand}" />
+                    Content="Process Multis"
+                    Width="100" Height="24" Padding="1"
+                    Command="{Binding ProcessMultisCommand}" />
 
             <Button x:Name="Help"
                     Grid.Row="2"
                     Grid.Column="3"
                     Content="Help"
-                    Width="50" Height="24" Padding="1"
+                    Width="100" Height="24" Padding="1"
                     Command="{Binding HelpCommand}" />
 
-            <Button x:Name="ProcessMultis"
+            <Button x:Name="Apply"
                     Grid.Row="3"
                     Grid.Column="2"
-                    Content="Process Multis"
+                    Content="Apply-Remember"
                     Width="100" Height="24" Padding="1"
-                    Command="{Binding ProcessMultisCommand}" />
+                    Command="{Binding ApplyRangeChangesCommand}" />
+
+            <Button x:Name="ProcessExport"
+                    Grid.Row="3"
+                    Grid.Column="3"
+                    Content="Export .xlsx"
+                    Width="100" Height="24" Padding="1"
+                    Command="{Binding ProcessExportCommand}" />
 
             <GridSplitter Grid.Column="1" 
                       Grid.Row="0"

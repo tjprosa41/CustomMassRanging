@@ -24,6 +24,8 @@ using System.Fabric;
 using CommunityToolkit.Mvvm.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 
+//using ClosedXML.Excel; // NuGet install ClosedXML
+
 /// CustomMassRanging
 /// 
 /// dotnet pack --configuration Release --property:Version=1.0.0 --property:PackageOutputPath="C:\Users\tprosa\OneDrive - AMETEK Inc\Desktop\MyExtensions"
@@ -96,6 +98,35 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
     // Bound to the PropertyGrid
     public Parameters Parameters { get; set; } = new();
 
+    // Plotting colors to use
+    public Color[] color = new Color[] {
+        Colors.Blue,
+        Colors.Red,
+        Colors.Green,
+        Colors.Black,
+        Colors.Purple,
+        Colors.Orange,
+        Colors.Brown,
+        Colors.Cyan,
+        Colors.Salmon
+    };
+    public Color[] lightColor = new Color[] {
+        Colors.LightBlue,
+        Colors.Magenta,
+        Colors.LightGreen,
+        Colors.Gray,
+        Colors.Lavender,
+        Colors.PeachPuff,
+        Colors.Tan,
+        Colors.LightCyan,
+        Colors.LightSalmon
+    };
+
+    // Need to seperatly track sepPlots for export
+    public List<Vector2[]> savedPlots = new();
+    public List<string> savedLegends = new();
+    public string saveFileName = "";
+
     // Add a line to the constructor to wire up the event handler to the Properties object PropertyChanged event
     public CustomMassRanging(IStandardAnalysisFilterNodeBaseServices services, ResourceFactory resourceFactory)
     : base(services, resourceFactory)
@@ -156,10 +187,22 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
             return false;
         }
 
-        // Get mass spectrum data
+        // Get mass spectrum data - not always caught by lack or RangeManager
         var massHist = Resources.GetMassSpectrum()?.GetData<IMassSpectrumData>()?.MassHistogram;
+        if (massHist is null)
+        {
+            MessageBox.Show(
+                "Must create a Mass Spectrum Analysis first!",
+                "Custom Analysis Error",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+            return false;
+        }
+        var nameExpermientName = Resources.AnalysisSetTitle.ToString(); //R5100_241627 New Analysis Tree
+        var nameTool = Resources.Title.ToString(); //Custom Mass Ranging
+        saveFileName = nameExpermientName + "_" + nameTool;
 
-        // Use the ViewBuilder to display a chart, in this case
+        // Use the ViewBuilder to display a chart, in this case -- null check is probably not necessary
         if (massHist is not null)
         {
             //Properties Table and values are filled via AssessHistogram
@@ -254,7 +297,7 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
         series.Thickness = 0;
         HistogramData.Add(series);
 
-        /*
+        /* Lines instead of triangles?
         foreach (var peak in peaks)
         {
             Vector3[] peakLine = new Vector3[2];
@@ -274,12 +317,18 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
             // Remember scheme unless null
             foreach (var range0 in MinSortedRangesTable)
             {
+                // Find previous
                 foreach (var range in RangesTable)
                 {
-                    if (range.Min <= range0.Pos && range.Max >= range0.Pos && range.Scheme != null)
+                    if (range.Min <= range0.Pos && range.Max >= range0.Pos)
                     {
-                        range0.Scheme = range.Scheme;
-                        break;
+                        // Remember MultiUse
+                        range0.MultiUse = range.MultiUse;
+                        if (range.Scheme != null)
+                        {
+                            range0.Scheme = range.Scheme;
+                            break;
+                        }
                     }
                 }
             }
@@ -444,57 +493,333 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
         if (!(IsIonDataValid(ionData)))
             return;
 
-        //For debugging...
         ObservableCollection<RangesTableEntries> useRanges = new();
         foreach (var range in RangesTable)
-            if (range.Name == "Si") useRanges.Add(range);
+            if (range.MultiUse) useRanges.Add(range);
 
+        if (useRanges.Count == 0)
+        {
+            string errorString =  "At least one Multi checkbox must be selected\n";
+                   errorString += "to perform multi-hit analysis.\n";
+
+            MessageBox.Show(
+                errorString,
+                "Custom MultiHit Analysis Error",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+            return;
+        }
+
+        SepHistogramData.Clear();
 
         MultiHits multiHits = new(ionData, values!.Values, useRanges, RangesTable, Parameters);
         MultisInformation.Value = String.Empty;
-        MultisInformation.Value = multiHits.MultisSummaryString();
+        MultisInformation.Value = multiHits.MultisSummaryString(Parameters);
 
         // Create the sep histogram data to be added to the chart in the view
-        Vector2[] sepPlot = new Vector2[MultiHits.NDistBins];
-        //distanceCorrelations[range1][dp][type 0=all, 1=non-same-same, 2=same-same][NDISTBINS]
-        for (int i = 0; i < MultiHits.NDistBins; i++)
-        {
-            sepPlot[i].X = (float)(i * MultiHits.DistRes);
-            sepPlot[i].Y = multiHits.dpDistanceCorrelations[1, 0, 2, i];
-        }  
+        int numPlots = 6;
+        if (Parameters.EPlotsList.Equals(EPlots.MultisOnly) || Parameters.EPlotsList.Equals(EPlots.PseudosOnly)) numPlots = 3;
+        if (Parameters.EPlotsList.Equals(EPlots.MultisOnly) || Parameters.EPlotsList.Equals(EPlots.PseudosOnly)) numPlots = (numPlots * 2) / 3;
 
-        var histogramRenderData = Resources.ChartObjects
-            .CreateHistogram(sepPlot, Colors.Black, name: "Range 1, dp=0, same-same");
+        //Vector2[] sepPlot = new Vector2[MultiHits.NDistBins];
+        savedPlots.Clear();
+        savedLegends.Clear();
 
-        // Create the sep histogram data to be added to the chart in the view
-        Vector2[] sepPlot2 = new Vector2[MultiHits.NDistBins];
-        //distanceCorrelations[range1][dp][type 0=all, 1=non-same-same, 2=same-same][NDISTBINS]
-        for (int i = 0; i < MultiHits.NDistBins; i++)
+        //Find the end of the distribution for the first range
+        //Use 1/2 that value to do the normalization
+        //Can use for pseudos too
+        int normMaxUncorrStart = 0;
+        int[] uncorrSSInt = new int[useRanges.Count];
+        int uncorrSSprimeInt = 0;
+        if (Parameters.ESepPlotScaling.Equals(EScaling.MaxUncorr))
         {
-            sepPlot2[i].X = (float)(i * MultiHits.DistRes);
-            sepPlot2[i].Y = multiHits.dpDistanceCorrelations[0, 0, 2, i];
+            foreach (var range in useRanges)
+            {
+                //distanceCorrelations[range1][dp][type 0=all, 1=non-same-same, 2=same-same][NDISTBINS]
+                for (int i = MultiHits.NDistBins - 1; i >= 0; i--)
+                {
+                    if (multiHits.dpDistanceCorrelations[0, 0, 0, i] > 0)
+                    {
+                        normMaxUncorrStart = i / 2;
+                        break;
+                    }
+                }
+                break;
+            }
+        }
+        int j = 0;
+        if (Parameters.EPlotsList.Equals(EPlots.Both) || Parameters.EPlotsList.Equals(EPlots.MultisOnly) ||
+            Parameters.EPlotsList.Equals(EPlots.BothNotAll) || Parameters.EPlotsList.Equals(EPlots.MultisOnlyNotAll))
+        {  
+            //same-same
+            j = 0;
+            foreach (var range in useRanges)
+            {
+                Vector2[] sepPlot = new Vector2[MultiHits.NDistBins];
+                //distanceCorrelations[range1][dp][type 0=all, 1=non-same-same, 2=same-same][NDISTBINS]
+                if (normMaxUncorrStart > 0)
+                {
+                    uncorrSSInt[j] = 0;
+                    for (int i = 0; i < normMaxUncorrStart; i++)
+                    {
+                        sepPlot[i].X = (float)(i * MultiHits.DistRes);
+                        sepPlot[i].Y = multiHits.dpDistanceCorrelations[j, 0, 2, i];
+                    }
+                    for (int i = normMaxUncorrStart;i < MultiHits.NDistBins; i++)
+                    {
+                        sepPlot[i].X = (float)(i * MultiHits.DistRes);
+                        sepPlot[i].Y = multiHits.dpDistanceCorrelations[j, 0, 2, i];
+                        uncorrSSInt[j] += multiHits.dpDistanceCorrelations[j, 0, 2, i];
+                    }
+                }
+                else
+                {
+                    for (int i = 0; i < MultiHits.NDistBins; i++)
+                    {
+                        sepPlot[i].X = (float)(i * MultiHits.DistRes);
+                        sepPlot[i].Y = multiHits.dpDistanceCorrelations[j, 0, 2, i];
+                    }
+                }
+
+                savedPlots.Add(sepPlot);
+                savedLegends.Add($"{multiHits.rangeNames[j]}, dp=0, same-same");
+
+                var histogramRenderData = Resources.ChartObjects
+                    .CreateHistogram(sepPlot, lightColor[j % lightColor.Length], name: $"{multiHits.rangeNames[j]}, dp=0, same-same");
+
+                SepHistogramData.Add(histogramRenderData);
+                j++;
+            }
+            //non-same-same and normallize
+            j = 0;
+            foreach (var range in useRanges)
+            {
+                //Normalize by uncorrelated counts
+                //A = Total of same-same, B = Total of non-same-same
+                //Normalize non-same-same by (B+2A)^2/4N^2
+                double normalize = 1d;
+                int missing = 0;
+                //Alternate normalization
+                uncorrSSprimeInt = 0;
+                if (normMaxUncorrStart > 0)
+                {
+                    for (int i = normMaxUncorrStart; i < MultiHits.NDistBins; i++)
+                        uncorrSSprimeInt += multiHits.dpDistanceCorrelations[j, 0, 1, i];
+                    normalize = (double)uncorrSSInt[j] / (double)uncorrSSprimeInt;
+                }
+                Normalize(multiHits, useRanges, j, 0, ref normalize, ref missing);
+
+                Vector2[] sepPlot = new Vector2[MultiHits.NDistBins];
+                //distanceCorrelations[range1][dp][type 0=all, 1=non-same-same, 2=same-same][NDISTBINS]
+                for (int i = 0; i < MultiHits.NDistBins; i++)
+                {
+                    sepPlot[i].X = (float)(i * MultiHits.DistRes);
+                    sepPlot[i].Y = (int)((double)multiHits.dpDistanceCorrelations[j, 0, 1, i] * normalize+0.49d);
+                }
+
+                savedPlots.Add(sepPlot);
+                savedLegends.Add(((Parameters.ESepPlotScaling.Equals(EScaling.IntUncorr) || Parameters.ESepPlotScaling.Equals(EScaling.MaxUncorr)) ?
+                    $"{multiHits.rangeNames[j]}, dp=0, non-same-same, missing: {(missing == 0 ? "NA" : missing)}" :
+                    $"{multiHits.rangeNames[j]}, dp=0, non-same-same"));
+                
+                //Thicker line
+                var histogramRenderData = Resources.ChartObjects
+                    .CreateHistogram(sepPlot, color[j % color.Length], 2.0f, name:
+                    ( (Parameters.ESepPlotScaling.Equals(EScaling.IntUncorr) || Parameters.ESepPlotScaling.Equals(EScaling.MaxUncorr)) ?
+                    $"{multiHits.rangeNames[j]}, dp=0, non-same-same, missing: {(missing == 0 ? "NA" : missing)}" :
+                    $"{multiHits.rangeNames[j]}, dp=0, non-same-same"));
+                
+                SepHistogramData.Add(histogramRenderData);
+                j++;
+            }
+            //all
+            j = 0;
+            if (Parameters.EPlotsList.Equals(EPlots.Both) || Parameters.EPlotsList.Equals(EPlots.MultisOnly))
+            {
+                Vector2[] sepPlot = new Vector2[MultiHits.NDistBins];
+                foreach (var range in useRanges)
+                {
+                    //distanceCorrelations[range1][dp][type 0=all, 1=non-same-same, 2=same-same][NDISTBINS]
+                    for (int i = 0; i < MultiHits.NDistBins; i++)
+                    {
+                        sepPlot[i].X = (float)(i * MultiHits.DistRes);
+                        sepPlot[i].Y = multiHits.dpDistanceCorrelations[j, 0, 0, i];
+                    }
+
+                    savedPlots.Add(sepPlot);
+                    savedLegends.Add($"{multiHits.rangeNames[j]}, dp=0, all");
+
+                    //Thicker line
+                    var histogramRenderData = Resources.ChartObjects
+                        .CreateHistogram(sepPlot, color[j % color.Length], 3.0f, name: $"{multiHits.rangeNames[j]}, dp=0, all");
+
+                    SepHistogramData.Add(histogramRenderData);
+                    j++;
+                }
+            }
         }
 
-        var histogramRenderData2 = Resources.ChartObjects
-            .CreateHistogram(sepPlot2, Colors.Red, name: "Range 0, dp=0, same-same");
-
-        // Create the sep histogram data to be added to the chart in the view
-        Vector2[] sepPlot3 = new Vector2[MultiHits.NDistBins];
-        //distanceCorrelations[range1][dp][type 0=all, 1=non-same-same, 2=same-same][NDISTBINS]
-        for (int i = 0; i < MultiHits.NDistBins; i++)
+        if (Parameters.EPlotsList.Equals(EPlots.Both) || Parameters.EPlotsList.Equals(EPlots.PseudosOnly) ||
+            Parameters.EPlotsList.Equals(EPlots.BothNotAll) || Parameters.EPlotsList.Equals(EPlots.PseudosOnlyNotAll))
         {
-            sepPlot3[i].X = (float)(i * MultiHits.DistRes);
-            sepPlot3[i].Y = multiHits.dpDistanceCorrelations[0, 0, 1, i];
+            //same-same
+            j = 0;
+            foreach (var range in useRanges)
+            {
+                Vector2[] sepPlot = new Vector2[MultiHits.NDistBins];
+                //distanceCorrelations[range1][dp][type 0=all, 1=non-same-same, 2=same-same][NDISTBINS]
+                if (normMaxUncorrStart > 0)
+                {
+                    uncorrSSInt[j] = 0;
+                    for (int i = 0; i < normMaxUncorrStart; i++)
+                    {
+                        sepPlot[i].X = (float)(i * MultiHits.DistRes);
+                        sepPlot[i].Y = multiHits.dpDistanceCorrelations[j, Parameters.IPseudoMultiMaxdp, 2, i];
+                    }
+                    for (int i = normMaxUncorrStart; i < MultiHits.NDistBins; i++)
+                    {
+                        sepPlot[i].X = (float)(i * MultiHits.DistRes);
+                        sepPlot[i].Y = multiHits.dpDistanceCorrelations[j, Parameters.IPseudoMultiMaxdp, 2, i];
+                        uncorrSSInt[j] += multiHits.dpDistanceCorrelations[j, Parameters.IPseudoMultiMaxdp, 2, i];
+                    }
+                }
+                else
+                {
+                    for (int i = 0; i < MultiHits.NDistBins; i++)
+                    {
+                        sepPlot[i].X = (float)(i * MultiHits.DistRes);
+                        sepPlot[i].Y = multiHits.dpDistanceCorrelations[j, Parameters.IPseudoMultiMaxdp, 2, i];
+                    }
+                }
+
+                savedPlots.Add(sepPlot);
+                savedLegends.Add($"{multiHits.rangeNames[j]}, dp>0, same-same");
+
+                var histogramRenderData = Resources.ChartObjects
+                    .CreateHistogram(sepPlot, lightColor[j % lightColor.Length], name: $"{multiHits.rangeNames[j]}, dp>0, same-same");
+
+                SepHistogramData.Add(histogramRenderData);
+                j++;
+            }
+            //non-same-same and normalize
+            j = 0;
+            foreach (var range in useRanges)
+            {
+                //Normalize by uncorrelated counts
+                //A = Total of same-same, B = Total of non-same-same
+                //Normalize non-same-same by (B+2A)^2/4N^2
+                double normalize = 1d;
+                int missing = 0;
+                //Alternate normalization
+                uncorrSSprimeInt = 0;
+                if (normMaxUncorrStart > 0)
+                {
+                    for (int i = normMaxUncorrStart; i < MultiHits.NDistBins; i++)
+                        uncorrSSprimeInt += multiHits.dpDistanceCorrelations[j, Parameters.IPseudoMultiMaxdp, 1, i];
+                    normalize = (double)uncorrSSInt[j] / (double)uncorrSSprimeInt;
+                }
+                Normalize(multiHits, useRanges, j, Parameters.IPseudoMultiMaxdp, ref normalize, ref missing);
+
+                Vector2[] sepPlot = new Vector2[MultiHits.NDistBins];
+                //distanceCorrelations[range1][dp][type 0=all, 1=non-same-same, 2=same-same][NDISTBINS]
+                for (int i = 0; i < MultiHits.NDistBins; i++)
+                {
+                    sepPlot[i].X = (float)(i * MultiHits.DistRes);
+                    sepPlot[i].Y = (int)((double)multiHits.dpDistanceCorrelations[j, Parameters.IPseudoMultiMaxdp, 1, i] * normalize + 0.49d);
+                }
+
+                savedPlots.Add(sepPlot);
+                savedLegends.Add(((Parameters.ESepPlotScaling.Equals(EScaling.IntUncorr) || Parameters.ESepPlotScaling.Equals(EScaling.MaxUncorr)) ?
+                    $"{multiHits.rangeNames[j]}, dp>0, non-same-same, missing: {(missing == 0 ? "NA" : missing)}" :
+                    $"{multiHits.rangeNames[j]}, dp>0, non-same-same"));
+
+                //Thicker line
+                var histogramRenderData = Resources.ChartObjects
+                    .CreateHistogram(sepPlot, color[j % color.Length], 2.0f, name: 
+                    ( (Parameters.ESepPlotScaling.Equals(EScaling.IntUncorr) || Parameters.ESepPlotScaling.Equals(EScaling.MaxUncorr)) ?
+                    $"{multiHits.rangeNames[j]}, dp>0, non-same-same, missing: {(missing == 0 ? "NA" : missing)}" :
+                    $"{multiHits.rangeNames[j]}, dp>0, non-same-same"));
+
+                SepHistogramData.Add(histogramRenderData);
+                j++;
+            }
+            //all
+            j = 0;
+            if (Parameters.EPlotsList.Equals(EPlots.Both) || Parameters.EPlotsList.Equals(EPlots.MultisOnly))
+            {
+                Vector2[] sepPlot = new Vector2[MultiHits.NDistBins];
+                foreach (var range in useRanges)
+                {
+                    //distanceCorrelations[range1][dp][type 0=all, 1=non-same-same, 2=same-same][NDISTBINS]
+                    for (int i = 0; i < MultiHits.NDistBins; i++)
+                    {
+                        sepPlot[i].X = (float)(i * MultiHits.DistRes);
+                        sepPlot[i].Y = multiHits.dpDistanceCorrelations[j, Parameters.IPseudoMultiMaxdp, 0, i];
+                    }
+
+                    savedPlots.Add(sepPlot);
+                    savedLegends.Add($"{multiHits.rangeNames[j]}, dp>0, all");
+
+                    //Thicker line
+                    var histogramRenderData = Resources.ChartObjects
+                        .CreateHistogram(sepPlot, color[j % color.Length], 3.0f, name: $"{multiHits.rangeNames[j]}, dp>0, all");
+
+                    SepHistogramData.Add(histogramRenderData);
+                    j++;
+                }
+            }
         }
+    }
 
-        var histogramRenderData3 = Resources.ChartObjects
-            .CreateHistogram(sepPlot3, Colors.Blue, name: "Range 0, dp=0, non-same-same");
+    // A ProcessExportCommand property is generated that can be used to bind this action to the view
+    [RelayCommand]
+    public async Task ProcessExport()
+    {
+        await Task.Yield();
+        CustomMassRangingExcel customMassRangingExcel = new CustomMassRangingExcel();
+        customMassRangingExcel.SaveExcelFile(values, Parameters, RangesTable,
+            IonicCompositionTable, IonicCompositionTotals, DecomposedCompositionTable, DecomposedCompositionTotals, MultisInformation.Value, savedPlots, savedLegends,
+            saveFileName);
+    }
 
-        // Adding to the SepHistogramData ObservableCollection notifies the bound Chart2D in the view to update with the plot data
-        SepHistogramData.Clear(); //If not, then adds new one...good for multiple plots, just change color!
-        SepHistogramData.Add(histogramRenderData2);
-        SepHistogramData.Add(histogramRenderData);
-        SepHistogramData.Add(histogramRenderData3);
+    public void Normalize(MultiHits multiHits, ObservableCollection<RangesTableEntries> useRanges, int j, int dp, ref double normalize, ref int missing)
+    {
+        //Sep plots are already filtered selected or selected and other or all
+        //Tables are tables and they are used here for normalization
+        if (Parameters.ESepPlotScaling.Equals(EScaling.IntUncorr) || Parameters.ESepPlotScaling.Equals(EScaling.MaxUncorr))
+        {
+            int A = 0;
+            int B = 0;
+            int useRangesMax = useRanges.Count; // Selected
+            if (Parameters.ESepPlots.Equals(EIons.SelectedAndOthers)) useRangesMax = useRanges.Count + 1;
+            if (Parameters.ESepPlots.Equals(EIons.All)) useRangesMax = useRanges.Count + 2;
+            A = multiHits.dpUncMultis[j, j, dp];
+            int detected = multiHits.dpCorMultis[j, j, dp];
+            int TotUnc = 0;
+            int TotCor = 0;
+            for (int k = 0; k < useRangesMax; k++)
+            {
+                TotUnc += multiHits.dpUncMultis[j, k, dp];
+                TotUnc += multiHits.dpUncMultis[k, j, dp];
+                TotCor += multiHits.dpCorMultis[j, k, dp];
+                TotCor += multiHits.dpCorMultis[k, j, dp];
+            }
+            //2D table so counting A and detected twice
+            B = TotUnc - A - A;
+
+            //If MaxUncorr then normalize has already been computed, just determine missing from tables
+            if (Parameters.ESepPlotScaling.Equals(EScaling.IntUncorr)) normalize = (double)A / (double)B;
+            missing = (int)((normalize * (double)(TotCor - detected - detected)) - (double)detected + 0.49d);
+            if (A >= 100 && A >= 100 && missing < 0)
+            {
+                missing = 0;
+            }
+            else if (A < 100 || B < 100)
+            {
+                normalize = 1d;
+                missing = 0;
+            }
+        }
     }
 
     private bool CheckForOverlappingRanges(bool tryResolveOverlapps)
@@ -614,7 +939,7 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
                 {
                     MessageBox.Show(
                         $"Bad fit of exponential tail/slope. Setting ranging back to Left from LeftTail.\n" +
-                        $"Exponent cannot be positive, proposed tail cannot be > rangeMax + 5 Da: {b:N3}, {xMax:N3}",
+                        $"Exponent cannot be positive, proposed tail cannot be > rangeMax + TailRangeMaximum: {b:N3}, {xMax:N3}",
                         "Fit Error",
                         MessageBoxButton.OK,
                         MessageBoxImage.Information);
@@ -633,7 +958,7 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
                     Vector3[] newTail = new Vector3[20];
                     float delta = (float)(xMax - range0.Max) / 20.0f;
                     float start = (float)range0.Max;
-                    for (int j = 0; j < 20; j++)
+                    for (int j = 0; j < 20; j++) //fixed 20 plot points
                     {
                         newTail[j].X = start;
                         newTail[j].Y = -1.0f; //Order of display
@@ -759,6 +1084,8 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
                 {
                     StartTable.Last().Scheme = range_item.Scheme;
                     RangesTable.Last().Scheme = range_item.Scheme;
+                    StartTable.Last().MultiUse = range_item.MultiUse;
+                    RangesTable.Last().MultiUse = range_item.MultiUse;
                 }
             }
         }
@@ -1101,7 +1428,7 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
             double rightBgd = 0.0d;
             values?.DetermineRange((float)MinSortedRangesTable[i].Pos, MinSortedRangesTable[i].Scheme, Parameters, ref left, ref right, ref netMax, ref raw, ref leftBgd, ref rightBgd);
 
-            RangesTableEntries newSortedRangesTable = new(MinSortedRangesTable[i].Name, MinSortedRangesTable[i].Pos, netMax, raw, MinSortedRangesTable[i].Formula,
+            RangesTableEntries newSortedRangesTable = new(MinSortedRangesTable[i].Name, MinSortedRangesTable[i].MultiUse, MinSortedRangesTable[i].Pos, netMax, raw, MinSortedRangesTable[i].Formula,
                 MinSortedRangesTable[i].Volume, (double)left, (double)right, MinSortedRangesTable[i].Scheme, MinSortedRangesTable[i].Color, leftBgd, rightBgd, Parameters.dLeftRangeDelta);
 
             RangesTable.Add(newSortedRangesTable);

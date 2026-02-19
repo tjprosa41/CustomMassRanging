@@ -26,8 +26,9 @@ namespace CustomMassRanging
         int keyRange = 1;
         bool useReconCoordinates = true; //true = nm, false = mm
         float critSep = 8.0f;
+        public int DPMax = 5;
+
         public const int HREGMax = 5;
-        public const int DPMax = 5;
         public const int NDistBins = 1000;
         public const int DPBins = 1000;
         public const float DistRes = 0.2f; //1000*0.2 = 200 nm or mm
@@ -62,6 +63,7 @@ namespace CustomMassRanging
         public int[,,] dpMultis = null!, dpCorMultis = null!, dpUncMultis = null!; //dpMultis[range1][r2>=r1][dp so DPMax+1]
                                                                                    //dp=0 then dp=1 to including DPMax
         public int[,,,] dpDistanceCorrelations = null!;     //distanceCorrelations[range1][dp][type 0=all, 1=non-same-same, 2=same-same][NDISTBINS]
+                                                            //also consider if all ranged or all selected or all ions period
 
         public class MultiStuff
         {
@@ -70,11 +72,15 @@ namespace CustomMassRanging
             public Vector3 coordinate;
         }
 
+        public EIons useSepPlots = EIons.Selected;
+
         //Initialize
         public MultiHits(IIonData ionData, Vector2[]? values, ObservableCollection<RangesTableEntries> useRanges, ObservableCollection<RangesTableEntries> allRanges, Parameters Parameters)
         {
             if (values == null || useRanges == null || allRanges == null)
                 return;
+
+            useSepPlots = Parameters.ESepPlots;
 
             N = useRanges.Count;
             NTotal = allRanges.Count;
@@ -111,6 +117,21 @@ namespace CustomMassRanging
                 rangeMaxs[j] = (float)range.Max;
                 j++;
             }
+
+            //Parameters now implimented
+            keyRange = 0;
+            for (int iKeyRange = 0; iKeyRange<useRanges.Count; iKeyRange++)
+            {
+                if (rangeNames[iKeyRange] == Parameters.SKeyRange)
+                {
+                    keyRange = iKeyRange;
+                    break;
+                }
+            }
+            Parameters.SKeyRange = rangeNames[keyRange];
+            critSep = (float)Parameters.DSeparationCriteria; 
+            useReconCoordinates = !Parameters.BUseDetectorSeparations;
+            DPMax = Parameters.IPseudoMultiMaxdp;
 
             //Delcare and initialize remaining arrays
             hreg = new int[HREGMax, 2];
@@ -319,21 +340,7 @@ namespace CustomMassRanging
 
                         // Add to dp=0 sep plot (all, not-same-same and same-same)
                         //[range1, dp, type, distBin]
-                        //type all=0
-                        dpDistanceCorrelations[multi.range, 0, 0, sep]++;
-                        dpDistanceCorrelations[multiStuff.range, 0, 0, sep]++;
-                        //type not-same-same=1
-                        if (multi.range != multiStuff.range)
-                        {
-                            dpDistanceCorrelations[multi.range, 0, 1, sep]++;
-                            dpDistanceCorrelations[multiStuff.range, 0, 1, sep]++;
-                        }
-                        //type same-same=2
-                        else
-                        {
-                            dpDistanceCorrelations[multi.range, 0, 2, sep]++;
-                            dpDistanceCorrelations[multiStuff.range, 0, 2, sep]++;
-                        }
+                        filldpDistanceCorrelations(multi.range, multiStuff.range, 0, sep, useSepPlots);
                     }
                     multis.Add(multiStuff);
                 }
@@ -375,20 +382,7 @@ namespace CustomMassRanging
                                 // Add to dp sep plot (all, not-same-same and same-same)
                                 //[range1, dp, type, distBin]
                                 //type all=0
-                                dpDistanceCorrelations[lastLastSingleMultiStuff.range, dp, 0, sep]++;
-                                dpDistanceCorrelations[multis.Last().range, dp, 0, sep]++;
-                                //type not-same-same=1
-                                if (lastLastSingleMultiStuff.range != multis.Last().range)
-                                {
-                                    dpDistanceCorrelations[lastLastSingleMultiStuff.range, dp, 1, sep]++;
-                                    dpDistanceCorrelations[multis.Last().range, dp, 1, sep]++;
-                                }
-                                //type same-same=2
-                                else
-                                {
-                                    dpDistanceCorrelations[lastLastSingleMultiStuff.range, dp, 2, sep]++;
-                                    dpDistanceCorrelations[multis.Last().range, dp, 2, sep]++;
-                                }
+                                filldpDistanceCorrelations(lastLastSingleMultiStuff.range, multis.Last().range, dp, sep, useSepPlots);
                             }
                         }
                         lastLastWasSingle = true;
@@ -426,7 +420,8 @@ namespace CustomMassRanging
         private void ProcessMultiStuff(List<MultiStuff> multis, MultiStuff multiStuff)
         {
             totIonCounts[multiStuff.range]++;
-            if (multis.Last().realPulse == multiStuff.realPulse) // At least 2nd of multi
+            // At least 2nd of multi
+            if (multis.Last().realPulse == multiStuff.realPulse) 
             {
                 foreach (var multi in multis)
                 {
@@ -442,26 +437,15 @@ namespace CustomMassRanging
                     // Add to dp=0 sep plot (all, not-same-same and same-same)
                     //[range1, dp, type, distBin]
                     //type all=0
-                    dpDistanceCorrelations[multi.range, 0, 0, sep]++;
-                    dpDistanceCorrelations[multiStuff.range, 0, 0, sep]++;
-                    //type not-same-same=1
-                    if (multi.range != multiStuff.range)
-                    {
-                        dpDistanceCorrelations[multi.range, 0, 1, sep]++;
-                        dpDistanceCorrelations[multiStuff.range, 0, 1, sep]++;
-                    }
-                    //type same-same=2
-                    else
-                    {
-                        dpDistanceCorrelations[multi.range, 0, 2, sep]++;
-                        dpDistanceCorrelations[multiStuff.range, 0, 2, sep]++;
-                    }
+                    filldpDistanceCorrelations(multi.range, multiStuff.range, 0, sep, useSepPlots);
                 }
                 multis.Add(multiStuff);
             }
-            else // Start of new event, process multis list
+            // Start of new event, process multis list
+            else
             {
-                if (multis.Count() == 1) //Previous was a Single
+                //Previous was a Single
+                if (multis.Count() == 1) 
                 {
                     int multisLastRange = multis.Last().range;
                     if (lastLastWasSingle) //Previous was a single and so was one before -- a pseudo pair
@@ -498,20 +482,7 @@ namespace CustomMassRanging
                             // Add to dp sep plot (all, not-same-same and same-same)
                             //[range1, dp, type, distBin]
                             //type all=0
-                            dpDistanceCorrelations[lastLastSingleMultiStuff.range, dp, 0, sep]++;
-                            dpDistanceCorrelations[multisLastRange, dp, 0, sep]++;
-                            //type not-same-same=1
-                            if (lastLastSingleMultiStuff.range != multisLastRange)
-                            {
-                                dpDistanceCorrelations[lastLastSingleMultiStuff.range, dp, 1, sep]++;
-                                dpDistanceCorrelations[multisLastRange, dp, 1, sep]++;
-                            }
-                            //type same-same=2
-                            else
-                            {
-                                dpDistanceCorrelations[lastLastSingleMultiStuff.range, dp, 2, sep]++;
-                                dpDistanceCorrelations[multisLastRange, dp, 2, sep]++;
-                            }
+                            filldpDistanceCorrelations(lastLastSingleMultiStuff.range, multisLastRange, dp, sep, useSepPlots);
                         }
                     }
                     lastLastWasSingle = true;
@@ -520,7 +491,8 @@ namespace CustomMassRanging
                     hreg[0, 1]++; //All single
                     if (multisLastRange < N) hreg[0, 0]++; //Ranged single
                 }
-                else //Previous was last of multi
+                //Previous was last of multi
+                else
                 {
                     // Add to the dp=0 part of dpHistogram
                     dpHistogram[0] += multis.Count();
@@ -594,7 +566,7 @@ namespace CustomMassRanging
             return (int)(seperation / DistRes);
         }
 
-        public string MultisSummaryString()
+        public string MultisSummaryString(Parameters Parameters)
         {
             string  Overview =  "Statistics are tracked for various groups of ions:\n";
                     Overview += "  Considered:   Specific ranges to include in summary table.\n";
@@ -607,6 +579,19 @@ namespace CustomMassRanging
                     Overview += "                out to some maximum dp time/pulse separation value.\n";
                     Overview += "\n";
 
+            string UncorrelatedTable = $"Uncorrelated Multis Table All: dpMultis[First Ion,Second Ion,dp=0]\n{"",13}";
+            for (int i = 0; i < N + 3; i++)
+                UncorrelatedTable += $"{rangeNames[i],13}";
+            UncorrelatedTable += "\n";
+            for (int i = 0; i < N + 3; i++)
+            {
+                UncorrelatedTable += $"{rangeNames[i],13}";
+                for (int j = 0; j < N + 3; j++)
+                    UncorrelatedTable += $"{dpUncMultis[i, j, 0],13:N0}";
+                UncorrelatedTable += "\n";
+            }
+            UncorrelatedTable += "\n";
+
             string CorrelatedTable = $"Correlated Multis Table All: dpMultis[First Ion,Second Ion,dp=0]\n{"",13}";
             for (int i = 0; i < N+3; i++)
                 CorrelatedTable += $"{rangeNames[i],13}";
@@ -615,7 +600,7 @@ namespace CustomMassRanging
             {
                 CorrelatedTable += $"{rangeNames[i],13}";
                 for (int j = 0; j < N + 3; j++)
-                    CorrelatedTable += $"{dpMultis[i,j,0],13:N0}";
+                    CorrelatedTable += $"{dpCorMultis[i,j,0],13:N0}";
                 CorrelatedTable += "\n";
             }
             CorrelatedTable += "\n";
@@ -659,7 +644,7 @@ namespace CustomMassRanging
             HregSummary += $"{(float)(dpHistogram[0] - totalWeighted)/norm,13:P2}";
             HregSummary += $"{(float)(hreg[0, 1] + dpHistogram[0])/norm,13:P0}";
 
-            HregSummary += "\n      Considered Events:          ";
+            HregSummary += "\n      Considered Events:   ";
             for (int i = 0; i < HREGMax; i++)
                 HregSummary += $"{hreg[i, 0],13:N0}";
             HregSummary += $"{totIonCounts[N + 2] - totIonCounts[N + 1] - totIonCounts[N],13:N0}";
@@ -722,8 +707,35 @@ namespace CustomMassRanging
             Summary += $"Uncorrelated same-same/not-same ratio for same-pulse multis vs. psudo-multis\n";
             Summary += $"(mostly unaffected/not deadtime affected same-pulse vs. same ratio with no deadtime effect)\n";
             Summary += $"(these are approximately predictable, governed mainly by Poisson statistics --> 100%)\n";
+            Summary += "\n";
 
-            return Overview + CorrelatedTable + Summary ;
+            string UncorrelatedPseudoTable = $"Uncorrelated Pseudo-Multis Table All: dpMultis[First Ion,Second Ion,dp=1...{Parameters.IPseudoMultiMaxdp}]\n{"",13}";
+            for (int i = 0; i < N + 3; i++)
+                UncorrelatedPseudoTable += $"{rangeNames[i],13}";
+            UncorrelatedPseudoTable += "\n";
+            for (int i = 0; i < N + 3; i++)
+            {
+                UncorrelatedPseudoTable += $"{rangeNames[i],13}";
+                for (int j = 0; j < N + 3; j++)
+                    UncorrelatedPseudoTable += $"{dpUncMultis[i, j, Parameters.IPseudoMultiMaxdp],13:N0}";
+                UncorrelatedPseudoTable += "\n";
+            }
+            UncorrelatedPseudoTable += "\n";
+
+            string CorrelatedPseudoTable = $"Correlated Pseudo-Multis Table All: dpMultis[First Ion,Second Ion,dp=1...{Parameters.IPseudoMultiMaxdp}]\n{"",13}";
+            for (int i = 0; i < N + 3; i++)
+                CorrelatedPseudoTable += $"{rangeNames[i],13}";
+            CorrelatedPseudoTable += "\n";
+            for (int i = 0; i < N + 3; i++)
+            {
+                CorrelatedPseudoTable += $"{rangeNames[i],13}";
+                for (int j = 0; j < N + 3; j++)
+                    CorrelatedPseudoTable += $"{dpCorMultis[i, j, Parameters.IPseudoMultiMaxdp],13:N0}";
+                CorrelatedPseudoTable += "\n";
+            }
+            CorrelatedPseudoTable += "\n";
+
+            return Overview + UncorrelatedTable + CorrelatedTable + Summary + UncorrelatedPseudoTable + CorrelatedPseudoTable;
         }
     
         public int getConsideredTotal(int[,,] array, int dp)
@@ -745,6 +757,48 @@ namespace CustomMassRanging
         public int getSSpConsideredTotal(int[,,] array, int dp)
         {
             return getConsideredTotal(array,dp) - getSSConsideredTotal(array,dp);
+        }
+        
+        public bool includeInSepPlot(int range1, int range2, EIons useSepPlots)
+        {
+            if (useSepPlots.Equals(EIons.All))
+            {
+                return true;
+            }
+            else if (useSepPlots.Equals(EIons.Selected))
+            {
+                if (range1 < N && range2 < N) return true;
+            }
+            else if (useSepPlots.Equals(EIons.SelectedAndOthers))
+            {
+                if (range1 < N + 1 && range2 < N + 1) return true;
+            }
+
+            return false;
+        }
+        
+        public void filldpDistanceCorrelations(int range1, int range2, int dp, int sep, EIons useSepPlots)
+        {
+            if (includeInSepPlot(range1, range2, useSepPlots))
+            {
+                //type all=0
+                dpDistanceCorrelations[range1, dp, 0, sep]++;
+                dpDistanceCorrelations[range2, dp, 0, sep]++;
+                //type not-same-same=1
+                if (range1 != range2)
+                {
+                    dpDistanceCorrelations[range1, dp, 1, sep]++;
+                    dpDistanceCorrelations[range2, dp, 1, sep]++;
+                }
+                //type same-same=2
+                else
+                {
+                    dpDistanceCorrelations[range1, dp, 2, sep]++;
+                    //Do not double count
+                    //dpDistanceCorrelations[range2, dp, 2, sep]++;
+                }
+            }
+            return;
         }
     }
 }

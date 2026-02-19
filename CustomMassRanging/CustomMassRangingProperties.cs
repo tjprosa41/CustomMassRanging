@@ -112,7 +112,7 @@ public partial class CustomMassRangingProperties : ObservableObject
 
     [ObservableProperty]
     [field: Display(Name = "Tail Range Maximum", GroupName = "Tail Parameters",
-        Description = "Maximum tail length alowed before triggering fit error.")]
+        Description = "Maximum tail length allowed before triggering fit error.")]
     public double dTailRangeMaximum = 5.0d;
 
     [ObservableProperty]
@@ -132,6 +132,44 @@ public partial class CustomMassRangingProperties : ObservableObject
         Description = "When a peak is detected, counts in max bin count must\n" +
                       "exceed this (good for filtering peaks tail of histogram).")]
     public int iMinPeakMaxCounts = 3;
+
+    [ObservableProperty]
+    [field: Display(Name = "Key Range", GroupName = "Multi-Hit Parameters",
+    Description = "Name of range to compute ToF and Voltage metrics\n" +
+                  "(format: XX.X-XX range position to 0.1 Da precision '-' chemical abbreviation).")]
+    public string sKeyRange = "";
+
+    [ObservableProperty]
+    [field: Display(Name = "Separation Criteria", GroupName = "Multi-Hit Parameters",
+        Description = "Separation defining the cut-off for correlated vs. uncorellated events\n" +
+                      "(nm or mm based on Use Detector Separation flag).")]
+    public double dSeparationCriteria = 8d;
+
+    [ObservableProperty]
+    [field: Display(Name = "Use Detector Separations", GroupName = "Multi-Hit Parameters",
+        Description = "Ion separation distances based on detector units or reconstructed\n" +
+                      "units (mm or nm).")]
+    public bool bUseDetectorSeparations = false;
+
+    [ObservableProperty]
+    [field: Display(Name = "Pseudo-Multi Max dp", GroupName = "Multi-Hit Parameters",
+        Description = "Use dp pulse separations from 1 to Max.\n")]
+    public int iPseudoMultiMaxdp = 5;
+
+    [ObservableProperty]
+    [field: Display(Name = "Scaling", GroupName = "Multi-Hit Parameters",
+    Description = "Scale all SepPlots based on selection.\n")]
+    public EScaling eSepPlotScaling = EScaling.None;
+
+    [ObservableProperty]
+    [field: Display(Name = "Plots List", GroupName = "Multi-Hit Parameters",
+        Description = "Groups of plots to display based on selection.\n")]
+    public EPlots ePlotsList = EPlots.MultisOnlyNotAll;
+
+    [ObservableProperty]
+    [field: Display(Name = "Sep Plots Include", GroupName = "Multi-Hit Parameters",
+    Description = "Types of ions to be used in separation plot histograms.\n")]
+    public EIons eSepPlots = EIons.Selected;
 
     public List<RangeList> RangesList = new();
 
@@ -163,6 +201,13 @@ public partial class CustomMassRangingProperties : ObservableObject
         DSensitivity = parameters.DSensitivity;
         IMinBinPairs = parameters.IMinBinPairs;
         IMinPeakMaxCounts = parameters.IMinPeakMaxCounts;
+        SKeyRange = parameters.SKeyRange; 
+        DSeparationCriteria = parameters.DSeparationCriteria;
+        BUseDetectorSeparations = parameters.BUseDetectorSeparations;
+        IPseudoMultiMaxdp = parameters.IPseudoMultiMaxdp;
+        ESepPlotScaling = parameters.ESepPlotScaling;
+        EPlotsList = parameters.EPlotsList;
+        ESepPlots = parameters.ESepPlots;
         ViewportUpper = parameters.ViewportUpper;
         ViewportLower = parameters.ViewportLower;
     }
@@ -171,7 +216,7 @@ public partial class CustomMassRangingProperties : ObservableObject
     {
         RangesList.Clear();
         foreach (var range in rangesTable)
-            RangesList.Add(new RangeList(range.Pos, range.Scheme));
+            RangesList.Add(new RangeList(range.Pos, range.Scheme, range.MultiUse));
     }
 
     public Parameters CopyPropertiesObservablesToParametersObservables()
@@ -194,6 +239,13 @@ public partial class CustomMassRangingProperties : ObservableObject
         copy.DSensitivity = DSensitivity;
         copy.IMinBinPairs = IMinBinPairs;
         copy.IMinPeakMaxCounts = IMinPeakMaxCounts;
+        copy.SKeyRange = SKeyRange;
+        copy.DSensitivity = DSensitivity;
+        copy.BUseDetectorSeparations = BUseDetectorSeparations;
+        copy.IPseudoMultiMaxdp = IPseudoMultiMaxdp;
+        copy.ESepPlotScaling = ESepPlotScaling;
+        copy.EPlotsList = EPlotsList;
+        copy.ESepPlots = ESepPlots;
         copy.ViewportUpper = ViewportUpper;
         copy.ViewportLower = ViewportLower;
         return copy;
@@ -205,15 +257,18 @@ public class RangeList
 {
     public double Pos;
     public RangeScheme? Scheme;
+    public bool MultiUse;
 
     public RangeList()
     {
         Pos = 0.0d;
         Scheme = null;
+        MultiUse = false;
     }
-    public RangeList(double pos, RangeScheme? scheme)
+    public RangeList(double pos, RangeScheme? scheme, bool multiUse)
     {
         Pos = pos;
         Scheme = scheme;
+        MultiUse = multiUse;
     }
 }
