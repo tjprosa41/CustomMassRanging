@@ -561,9 +561,9 @@ namespace CustomMassRanging
         private int getBinSeparation(Vector3 p1, Vector3 p2, ref bool cor)
         {
             cor = false;
-            double seperation = Math.Sqrt( Math.Pow(p2.X-p1.X,2) + Math.Pow(p2.Y - p1.Y, 2) + Math.Pow(p2.Z - p1.Z, 2));
-            if (seperation <= critSep) cor = true;
-            return (int)(seperation / DistRes);
+            double separation = Math.Sqrt( Math.Pow(p2.X-p1.X,2) + Math.Pow(p2.Y - p1.Y, 2) + Math.Pow(p2.Z - p1.Z, 2));
+            if (separation <= critSep) cor = true;
+            return (int)(separation / DistRes);
         }
 
         public string MultisSummaryString(Parameters Parameters)

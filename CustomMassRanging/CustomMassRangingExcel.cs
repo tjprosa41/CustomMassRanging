@@ -34,7 +34,7 @@ namespace CustomMassRanging
             WorkBook workBook = WorkBook.Create(ExcelFileFormat.XLSX);
 
             List<string> tabNames = new List<string> { "Parameters", "RangesTable", "MassHistogram", "IonicComposition", "DecomposedComposition", 
-                "MultihitInformation", "SeperationPlots"};
+                "MultihitInformation", "SeparationPlots"};
 
             WorkSheet[] workSheet = new WorkSheet[tabNames.Count];
             int counter = 0;

@@ -256,17 +256,17 @@ namespace CustomMassRanging
 
             //Left is the same regardless of bUseFixedRangingWidth
             if (scheme == RangeScheme.Left || scheme == RangeScheme.LeftTail)
-                nBinsMin = (int)((float)(parameters.DMaxPeakFWHunM * parameters.DRangingWidthFactor) / BinWidth);
+                nBinsMin = (int)((float)(parameters.DMaxPeakFWHunM * parameters.DRangingWidthFactor) / BinWidth + 0.5d);
             else
             {
                 if (parameters.bUseFixedRangingWidth)
                 {
-                    nBinsMin = (int)((float)(parameters.DMaxPeakFWHunM * parameters.DRangingWidthFactor) / BinWidth / 4.0f * Math.Sqrt(dPos / MaxPos));
+                    nBinsMin = (int)((float)(parameters.DMaxPeakFWHunM * parameters.DRangingWidthFactor) / BinWidth / 4.0f * Math.Sqrt(dPos / MaxPos) + 0.5d);
                     nBinsMin *= 4;
                 }
                 else
                 {
-                    nBinsMin = (int)((float)(parameters.DMinWidthFactor * parameters.DMaxPeakFWHunM) / BinWidth / 4.0f * Math.Sqrt(dPos / MaxPos));
+                    nBinsMin = (int)((float)(parameters.DMinWidthFactor * parameters.DMaxPeakFWHunM) / BinWidth / 4.0f * Math.Sqrt(dPos / MaxPos + 0.5d));
                     nBinsMin *= 4;
                 }
             }
@@ -287,7 +287,7 @@ namespace CustomMassRanging
                 //netMax is the netMax and raw-netMax is the background, depending on the method
                 newLeft = GetPos(left - 1); //Need plot and range to both go up to next bin edge, so add -1 bigger
                 newRight = GetPos(right);
-                int nBinsDelta = (int)((float)(parameters.DLeftRangeDelta / BinWidth));
+                int nBinsDelta = (int)((float)(parameters.DLeftRangeDelta / BinWidth) + 0.5d);
                 if (left - nBinsDelta < 0) nBinsDelta = left;
                 leftBgd = Integrate(left, right, -nBinsDelta);
                 rightBgd = 0;

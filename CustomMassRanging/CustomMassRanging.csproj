@@ -39,10 +39,13 @@
 	</ItemGroup>
 
 	<ItemGroup>
-	  <None Update="CustomMassRanges2.1.pdf">
+	  <None Update="CustomMassRanging2.1.pdf">
 	    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 	  </None>
 	  <None Update="CustomMassRanging2.0.pdf">
+	    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+	  </None>
+	  <None Update="CustomMassRanging3.0.pdf">
 	    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 	  </None>
 	</ItemGroup>

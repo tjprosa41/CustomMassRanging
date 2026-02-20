@@ -355,7 +355,7 @@
                     </TabItem>
 
                     <!-- Mass Histogram IsLegendVisible="True"-->
-                    <TabItem Header="Separation Plot" Opacity="1" Name="SepHistogram">
+                    <TabItem Header="Separation Plots" Opacity="1" Name="SepHistogram">
                         <controls:Chart2D x:Name="SepHistogramChart2D"
                             IsLegendVisible="True"
                             DataSource="{Binding SepHistogramData}"
