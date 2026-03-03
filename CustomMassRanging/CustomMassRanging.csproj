@@ -39,15 +39,18 @@
 	</ItemGroup>
 
 	<ItemGroup>
-	  <None Update="CustomMassRanging2.1.pdf">
+	  <None Update="CustomMassRanging2.0.pdf">
 	    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 	  </None>
-	  <None Update="CustomMassRanging2.0.pdf">
+	  <None Update="CustomMassRanging2.1.pdf">
 	    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 	  </None>
 	  <None Update="CustomMassRanging3.0.pdf">
 	    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 	  </None>
+		<None Update="CustomMassRanging3.1.pdf">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</None>
 	</ItemGroup>
 
 	<!-- Nuspec Initiaization and Configuration -->

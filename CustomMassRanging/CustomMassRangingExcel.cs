@@ -1,19 +1,9 @@
-﻿using Cameca.CustomAnalysis.Interface;
-using IronXL;
-using System.Windows.Forms;
-using Microsoft.Win32;
-using Prism.Services.Dialogs;
+﻿using IronXL;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.Diagnostics.Metrics;
-using System.Linq;
 using System.Numerics;
 using System.Reflection;
-using System.Text;
-using System.Threading.Tasks;
-using System.Windows.Media;
-using static Grpc.Core.Metadata;
 
 namespace CustomMassRanging
 {
@@ -33,7 +23,7 @@ namespace CustomMassRanging
             // Create a new Excel Workbook
             WorkBook workBook = WorkBook.Create(ExcelFileFormat.XLSX);
 
-            List<string> tabNames = new List<string> { "Parameters", "RangesTable", "MassHistogram", "IonicComposition", "DecomposedComposition", 
+            List<string> tabNames = new List<string> { "Parameters", "RangesTable", "MassHistogram", "IonicComposition", "DecomposedComposition",
                 "MultihitInformation", "SeparationPlots"};
 
             WorkSheet[] workSheet = new WorkSheet[tabNames.Count];
@@ -171,8 +161,8 @@ namespace CustomMassRanging
                 workSheet[w].SetCellValue(0, 2 * counter + 1, savedLegends[counter]);
                 for (int i = 0; i < plot.Length; i++)
                 {
-                    workSheet[w].SetCellValue(i + 1, 2*counter, plot[i].X);
-                    workSheet[w].SetCellValue(i + 1, 2*counter+1, plot[i].Y);
+                    workSheet[w].SetCellValue(i + 1, 2 * counter, plot[i].X);
+                    workSheet[w].SetCellValue(i + 1, 2 * counter + 1, plot[i].Y);
                 }
                 counter++;
             }

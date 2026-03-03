@@ -1,9 +1,8 @@
-﻿using System.Collections.Generic;
+﻿using CommunityToolkit.Mvvm.ComponentModel;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 using System.Numerics;
-using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace CustomMassRanging;
 
@@ -41,7 +40,7 @@ public partial class CustomMassRangingProperties : ObservableObject
 
     [ObservableProperty]
     [field: Display(Name = "Max Peak Position (Da)", GroupName = "Histogram Information",
-        Description = "Most intense m/z location (bin) of Max Peak.\n"+
+        Description = "Most intense m/z location (bin) of Max Peak.\n" +
                       "All ranging widths are scaled from this peak location.")]
     public double dMaxPeakPosition = -1.0d;
 
@@ -96,7 +95,7 @@ public partial class CustomMassRangingProperties : ObservableObject
 
     [ObservableProperty]
     [field: Display(Name = "Ignore Discovered Peaks", GroupName = "Ranging Parameters",
-    Description = "Do not incoprotate discovred peaks into range definitions.\n"+
+    Description = "Do not incoprotate discovred peaks into range definitions.\n" +
         "Do not use discovered or _Unknown_ ranges in composition calculations.")]
     public bool bIgnoreDiscoveredUnknownPeaks = true;
 
@@ -172,6 +171,8 @@ public partial class CustomMassRangingProperties : ObservableObject
     public EIons eSepPlots = EIons.Selected;
 
     public List<RangeList> RangesList = new();
+    public bool RangesUpdated = false;
+    public bool MultisUpdated = false;
 
     //Starts in log scale, so defalut Y needs to be >0
     [ObservableProperty]
@@ -201,13 +202,15 @@ public partial class CustomMassRangingProperties : ObservableObject
         DSensitivity = parameters.DSensitivity;
         IMinBinPairs = parameters.IMinBinPairs;
         IMinPeakMaxCounts = parameters.IMinPeakMaxCounts;
-        SKeyRange = parameters.SKeyRange; 
+        SKeyRange = parameters.SKeyRange;
         DSeparationCriteria = parameters.DSeparationCriteria;
         BUseDetectorSeparations = parameters.BUseDetectorSeparations;
         IPseudoMultiMaxdp = parameters.IPseudoMultiMaxdp;
         ESepPlotScaling = parameters.ESepPlotScaling;
         EPlotsList = parameters.EPlotsList;
         ESepPlots = parameters.ESepPlots;
+        RangesUpdated = parameters.RangesUpdated;
+        MultisUpdated = parameters.MultisUpdated;
         ViewportUpper = parameters.ViewportUpper;
         ViewportLower = parameters.ViewportLower;
     }
@@ -246,6 +249,8 @@ public partial class CustomMassRangingProperties : ObservableObject
         copy.ESepPlotScaling = ESepPlotScaling;
         copy.EPlotsList = EPlotsList;
         copy.ESepPlots = ESepPlots;
+        copy.RangesUpdated = RangesUpdated;
+        copy.MultisUpdated = MultisUpdated;
         copy.ViewportUpper = ViewportUpper;
         copy.ViewportLower = ViewportLower;
         return copy;

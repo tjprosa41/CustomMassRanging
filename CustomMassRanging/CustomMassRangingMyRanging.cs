@@ -38,7 +38,7 @@ namespace CustomMassRanging
             int start = GetIndex((float)min);
             int stop = GetIndex((float)max);
             float maxValue = 0.0f;
-            float maxPos = (float)max;            
+            float maxPos = (float)max;
             if (stop < Values.Length)
             {
                 for (int i = start; i <= stop; i++)
@@ -250,7 +250,7 @@ namespace CustomMassRanging
                 rightBgd = 0f;
                 return;
             }
-            
+
             //nBinsMin needs to be divisible by 4 to support half AND quarter ranging -- added factor that scales minimum width
             int nBinsMin = 0;
 
@@ -270,7 +270,7 @@ namespace CustomMassRanging
                     nBinsMin *= 4;
                 }
             }
-            
+
             int width = nBinsMin;
             int left = startIndex - width / 2 + 1;
             int right = startIndex + width / 2;
@@ -350,7 +350,7 @@ namespace CustomMassRanging
             // factor is number of bins representing MinWidthFactor*MaxPeak
             float factor = (float)(parameters.dMinWidthFactor * parameters.dMaxPeakFWHunM) / BinWidth;
             float currentPos = GetPos(Length - 1);
-            
+
             //Need to accomodate for width at end of histogram and 1/2-range width
             //Also want to be even
             //Estimating the width at the end of the histogram based on constant ToF widths, and fudged by 3x.
@@ -358,7 +358,7 @@ namespace CustomMassRanging
             //This turned out to fail on occasion, so that is why 3x fudge (1.5x was too small). 
             int stopBinWidth = 2 * (int)(factor * Math.Sqrt(currentPos / MaxPos) * 3d / 2d) + 2;
             for (int left = GetIndex(0.8f); left < Length - stopBinWidth; left++)
-            {  
+            {
                 // Keep incrimenting the left edge for the search
                 // Width is defined by nBins
                 // Get net = raw - half-range bgd

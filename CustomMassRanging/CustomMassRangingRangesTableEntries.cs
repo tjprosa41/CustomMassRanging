@@ -1,5 +1,5 @@
-﻿using System.Numerics;
-using Cameca.CustomAnalysis.Interface;
+﻿using Cameca.CustomAnalysis.Interface;
+using System.Numerics;
 
 namespace CustomMassRanging
 {
@@ -45,7 +45,7 @@ namespace CustomMassRanging
             else
                 BgdSigma2 = Bgd;
         }
-        
+
         public RangesTableEntries(IonTypeInfoRange ionTypeInfoRange)
         : base(ionTypeInfoRange.Name, ionTypeInfoRange.Formula, ionTypeInfoRange.Volume, ionTypeInfoRange.Min, ionTypeInfoRange.Max, ionTypeInfoRange.Color)
         {

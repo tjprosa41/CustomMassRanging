@@ -1,9 +1,13 @@
-﻿using System;
+﻿using Cameca.CustomAnalysis.Interface;
+using Cameca.CustomAnalysis.Utilities;
+using CommunityToolkit.HighPerformance;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using System;
 using System.Collections.Generic; //IEnumerable<>
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
-using System.Diagnostics.Metrics;
 using System.IO;
 using System.Linq;
 using System.Numerics;
@@ -13,16 +17,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Media;
-using Cameca.CustomAnalysis.Interface;
-using Cameca.CustomAnalysis.Utilities;
-using CommunityToolkit.Mvvm.Input;
-using System.Text;
-using System.Xml.Serialization;
-
-using CommunityToolkit.HighPerformance;
-using System.Fabric;
-using CommunityToolkit.Mvvm.ComponentModel;
-using System.ComponentModel.DataAnnotations;
 
 //using ClosedXML.Excel; // NuGet install ClosedXML
 
@@ -85,13 +79,13 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
 
     //CompositionTable can be built after RangesTable has been updated
     public ObservableCollection<CompositionTableEntries> IonicCompositionTable { get; } = new();
-    public CompositionTableTotals IonicCompositionTotals { get; set; } = new(); 
+    public CompositionTableTotals IonicCompositionTotals { get; set; } = new();
     public ObservableCollection<CompositionTableEntries> DecomposedCompositionTable { get; } = new();
     public CompositionTableTotals DecomposedCompositionTotals { get; set; } = new();
 
     //[Display(Name = "MultisInformation", AutoGenerateField = true, Description = "Multihit Information")]
     public MyViewableString MultisInformation { get; set; } = new();
-    
+
     //values is the class that does all the processing of the coarsened mass spectrum
     public MyRanging? values;
 
@@ -250,6 +244,9 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
 
         //Properties is an enherited observable from CustomMassRangignProperties -- this needs to be after making of plots
         Parameters.ResetParametersObservablesToPropertiesObservables(Properties);
+
+        if (Parameters.rangesUpdated) await Rerange();
+        if (Parameters.multisUpdated) await ProcessMultis();
 
         // Return true as the update completed successfully and the data state of the analysis should be considered valid
         return true;
@@ -424,6 +421,8 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
         upper.Y += 0.0001f;
         Parameters.ViewportLower = lower;
         Parameters.ViewportUpper = upper;
+
+        Parameters.rangesUpdated = true;
     }
 
     // An ApplyRangeChangesCommand property is generated that can be used to bind this action to the view
@@ -467,7 +466,7 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
         string extensionDirectory = new DirectoryInfo(Assembly.GetExecutingAssembly().Location).Parent!.FullName;
 
         // And then the full path to your PDF should be
-        string absHelpPath = Path.Join(extensionDirectory, "CustomMassRanging3.0.pdf");
+        string absHelpPath = Path.Join(extensionDirectory, "CustomMassRanging3.1.pdf");
 
         var processStartInfo = new ProcessStartInfo()
         {
@@ -499,8 +498,8 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
 
         if (useRanges.Count == 0)
         {
-            string errorString =  "At least one Multi checkbox must be selected\n";
-                   errorString += "to perform multi-hit analysis.\n";
+            string errorString = "At least one Multi checkbox must be selected\n";
+            errorString += "to perform multi-hit analysis.\n";
 
             MessageBox.Show(
                 errorString,
@@ -547,10 +546,12 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
                 break;
             }
         }
+
+        // Multis
         int j = 0;
         if (Parameters.EPlotsList.Equals(EPlots.Both) || Parameters.EPlotsList.Equals(EPlots.MultisOnly) ||
             Parameters.EPlotsList.Equals(EPlots.BothNotAll) || Parameters.EPlotsList.Equals(EPlots.MultisOnlyNotAll))
-        {  
+        {
             //same-same
             j = 0;
             foreach (var range in useRanges)
@@ -565,7 +566,7 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
                         sepPlot[i].X = (float)(i * MultiHits.DistRes);
                         sepPlot[i].Y = multiHits.dpDistanceCorrelations[j, 0, 2, i];
                     }
-                    for (int i = normMaxUncorrStart;i < MultiHits.NDistBins; i++)
+                    for (int i = normMaxUncorrStart; i < MultiHits.NDistBins; i++)
                     {
                         sepPlot[i].X = (float)(i * MultiHits.DistRes);
                         sepPlot[i].Y = multiHits.dpDistanceCorrelations[j, 0, 2, i];
@@ -614,21 +615,21 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
                 for (int i = 0; i < MultiHits.NDistBins; i++)
                 {
                     sepPlot[i].X = (float)(i * MultiHits.DistRes);
-                    sepPlot[i].Y = (int)((double)multiHits.dpDistanceCorrelations[j, 0, 1, i] * normalize+0.49d);
+                    sepPlot[i].Y = (int)((double)multiHits.dpDistanceCorrelations[j, 0, 1, i] * normalize + 0.49d);
                 }
 
                 savedPlots.Add(sepPlot);
                 savedLegends.Add(((Parameters.ESepPlotScaling.Equals(EScaling.IntUncorr) || Parameters.ESepPlotScaling.Equals(EScaling.MaxUncorr)) ?
                     $"{multiHits.rangeNames[j]}, dp=0, non-same-same, missing: {(missing == 0 ? "NA" : missing)}" :
                     $"{multiHits.rangeNames[j]}, dp=0, non-same-same"));
-                
+
                 //Thicker line
                 var histogramRenderData = Resources.ChartObjects
                     .CreateHistogram(sepPlot, color[j % color.Length], 2.0f, name:
-                    ( (Parameters.ESepPlotScaling.Equals(EScaling.IntUncorr) || Parameters.ESepPlotScaling.Equals(EScaling.MaxUncorr)) ?
+                    ((Parameters.ESepPlotScaling.Equals(EScaling.IntUncorr) || Parameters.ESepPlotScaling.Equals(EScaling.MaxUncorr)) ?
                     $"{multiHits.rangeNames[j]}, dp=0, non-same-same, missing: {(missing == 0 ? "NA" : missing)}" :
                     $"{multiHits.rangeNames[j]}, dp=0, non-same-same"));
-                
+
                 SepHistogramData.Add(histogramRenderData);
                 j++;
             }
@@ -659,6 +660,7 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
             }
         }
 
+        // Pseudos
         if (Parameters.EPlotsList.Equals(EPlots.Both) || Parameters.EPlotsList.Equals(EPlots.PseudosOnly) ||
             Parameters.EPlotsList.Equals(EPlots.BothNotAll) || Parameters.EPlotsList.Equals(EPlots.PseudosOnlyNotAll))
         {
@@ -674,13 +676,13 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
                     for (int i = 0; i < normMaxUncorrStart; i++)
                     {
                         sepPlot[i].X = (float)(i * MultiHits.DistRes);
-                        sepPlot[i].Y = multiHits.dpDistanceCorrelations[j, Parameters.IPseudoMultiMaxdp, 2, i];
+                        sepPlot[i].Y = multiHits.dpDistanceCorrelations[j, Parameters.IPseudoMultiMaxdp + 1, 2, i];
                     }
                     for (int i = normMaxUncorrStart; i < MultiHits.NDistBins; i++)
                     {
                         sepPlot[i].X = (float)(i * MultiHits.DistRes);
-                        sepPlot[i].Y = multiHits.dpDistanceCorrelations[j, Parameters.IPseudoMultiMaxdp, 2, i];
-                        uncorrSSInt[j] += multiHits.dpDistanceCorrelations[j, Parameters.IPseudoMultiMaxdp, 2, i];
+                        sepPlot[i].Y = multiHits.dpDistanceCorrelations[j, Parameters.IPseudoMultiMaxdp + 1, 2, i];
+                        uncorrSSInt[j] += multiHits.dpDistanceCorrelations[j, Parameters.IPseudoMultiMaxdp + 1, 2, i];
                     }
                 }
                 else
@@ -688,7 +690,7 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
                     for (int i = 0; i < MultiHits.NDistBins; i++)
                     {
                         sepPlot[i].X = (float)(i * MultiHits.DistRes);
-                        sepPlot[i].Y = multiHits.dpDistanceCorrelations[j, Parameters.IPseudoMultiMaxdp, 2, i];
+                        sepPlot[i].Y = multiHits.dpDistanceCorrelations[j, Parameters.IPseudoMultiMaxdp + 1, 2, i];
                     }
                 }
 
@@ -715,17 +717,17 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
                 if (normMaxUncorrStart > 0)
                 {
                     for (int i = normMaxUncorrStart; i < MultiHits.NDistBins; i++)
-                        uncorrSSprimeInt += multiHits.dpDistanceCorrelations[j, Parameters.IPseudoMultiMaxdp, 1, i];
+                        uncorrSSprimeInt += multiHits.dpDistanceCorrelations[j, Parameters.IPseudoMultiMaxdp + 1, 1, i];
                     normalize = (double)uncorrSSInt[j] / (double)uncorrSSprimeInt;
                 }
-                Normalize(multiHits, useRanges, j, Parameters.IPseudoMultiMaxdp, ref normalize, ref missing);
+                Normalize(multiHits, useRanges, j, Parameters.IPseudoMultiMaxdp + 1, ref normalize, ref missing);
 
                 Vector2[] sepPlot = new Vector2[MultiHits.NDistBins];
                 //distanceCorrelations[range1][dp][type 0=all, 1=non-same-same, 2=same-same][NDISTBINS]
                 for (int i = 0; i < MultiHits.NDistBins; i++)
                 {
                     sepPlot[i].X = (float)(i * MultiHits.DistRes);
-                    sepPlot[i].Y = (int)((double)multiHits.dpDistanceCorrelations[j, Parameters.IPseudoMultiMaxdp, 1, i] * normalize + 0.49d);
+                    sepPlot[i].Y = (int)((double)multiHits.dpDistanceCorrelations[j, Parameters.IPseudoMultiMaxdp + 1, 1, i] * normalize + 0.49d);
                 }
 
                 savedPlots.Add(sepPlot);
@@ -735,8 +737,8 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
 
                 //Thicker line
                 var histogramRenderData = Resources.ChartObjects
-                    .CreateHistogram(sepPlot, color[j % color.Length], 2.0f, name: 
-                    ( (Parameters.ESepPlotScaling.Equals(EScaling.IntUncorr) || Parameters.ESepPlotScaling.Equals(EScaling.MaxUncorr)) ?
+                    .CreateHistogram(sepPlot, color[j % color.Length], 2.0f, name:
+                    ((Parameters.ESepPlotScaling.Equals(EScaling.IntUncorr) || Parameters.ESepPlotScaling.Equals(EScaling.MaxUncorr)) ?
                     $"{multiHits.rangeNames[j]}, dp>0, non-same-same, missing: {(missing == 0 ? "NA" : missing)}" :
                     $"{multiHits.rangeNames[j]}, dp>0, non-same-same"));
 
@@ -754,7 +756,7 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
                     for (int i = 0; i < MultiHits.NDistBins; i++)
                     {
                         sepPlot[i].X = (float)(i * MultiHits.DistRes);
-                        sepPlot[i].Y = multiHits.dpDistanceCorrelations[j, Parameters.IPseudoMultiMaxdp, 0, i];
+                        sepPlot[i].Y = multiHits.dpDistanceCorrelations[j, Parameters.IPseudoMultiMaxdp + 1, 0, i];
                     }
 
                     savedPlots.Add(sepPlot);
@@ -769,6 +771,7 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
                 }
             }
         }
+        Parameters.multisUpdated = true;
     }
 
     // A ProcessExportCommand property is generated that can be used to bind this action to the view
@@ -1477,13 +1480,15 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
         foreach (var section in sections)
             if (!sectionInfo.Contains(section))
             {
-                errorString += "Note: Compatibility for ROI multi-hit processing\n";
-                errorString += "requires additional non-epos sections pulse and pulseDelta.\n";
                 errorString += $"Missing section: {section}\n";
             }
 
         if (errorString != "")
         {
+            errorString += "\nNote: Compatibility for ROI multi-hit processing\n";
+            errorString += "requires EPOS and additional non-epos sections\n";
+            errorString += "pulse and pulseDelta.\n";
+
             MessageBox.Show(
                 errorString,
                 "Custom MultiHit Analysis Error",

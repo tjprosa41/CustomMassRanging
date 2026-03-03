@@ -1,10 +1,7 @@
-﻿using System.Collections.ObjectModel;
+﻿using Cameca.CustomAnalysis.Interface;
+using CommunityToolkit.Mvvm.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 using System.Linq;
-using Cameca.CustomAnalysis.Interface;
-using System.ComponentModel;
-using System.Runtime.CompilerServices;
-using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace CustomMassRanging
 {
