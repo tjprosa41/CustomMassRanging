@@ -1,4 +1,4 @@
-﻿<UserControl x:Class="CustomMassRanging.CustomMassRangingView"
+﻿    <UserControl x:Class="CustomMassRanging.CustomMassRangingView"
              x:ClassModifier="internal"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -346,12 +346,53 @@
 
                     </TabItem>
 
-                    <!-- Multi Info -->
+                    <!-- Multi Info
                     <TabItem Header="Multi-hit Information" Opacity="1" Name="MultiInformation">
                         <ScrollViewer HorizontalScrollBarVisibility="Visible">
                             <TextBox HorizontalAlignment="Left" VerticalAlignment="Top" FontFamily="Courier New"
                                        Text="{Binding Path=MultisInformation.Value, Mode=OneWay}"/>
                         </ScrollViewer>
+                    </TabItem>
+                    -->
+                    
+                    <!-- Multi Info -->
+                    <TabItem Header="Multi-hit Information" Opacity="1" Name="MultiInformation2">
+                        <RichTextBox x:Name="MyRichTextBox" 
+                             FontFamily="Courier New"
+                             FontSize="14"
+                             Width="Auto" 
+                             Height="Auto" 
+                             SpellCheck.IsEnabled="False" 
+                             VerticalScrollBarVisibility="Auto"
+                             HorizontalScrollBarVisibility="Auto"
+                             >
+                            <FlowDocument>
+                                <Paragraph TextIndent="0">
+                                    <Bold>Overview:</Bold>
+                                    <LineBreak/>
+                                    <Run FontSize ="12" Text="{Binding Path=MultisInformation.Overview, Mode=OneWay}" /><Bold><Run Foreground="Red">Simple Multi-Hit Descriptors:</Run>
+                                    </Bold>
+                                    <LineBreak/>
+                                    <Run Foreground="Red" FontSize ="12" Text="{Binding Path=MultisInformation.Simple, Mode=OneWay}" /><Bold><Run Foreground="Blue">Information by Ion Type:</Run></Bold>
+                                    <LineBreak/>
+                                    <Run Foreground="Blue" FontSize ="12" Text="{Binding Path=MultisInformation.Infobyiontype, Mode=OneWay}" /><Bold>Correlated Multis Table:</Bold>
+                                    <LineBreak/>
+                                    <Run FontSize ="12" Text="{Binding Path=MultisInformation.Correlatedmultistable, Mode=OneWay}" /><Bold>Correlated Multis Table, Deadtime Corrected, Normalized Ratio:</Bold>
+                                    <LineBreak/>
+                                    <Run FontSize ="12" Text="{Binding Path=MultisInformation.CorrelatedmultistableNormalized, Mode=OneWay}" /><Bold>Correlated Multis Table, Deadtime Corrected, #Stdevs:</Bold>
+                                    <LineBreak/>
+                                    <Run FontSize ="12" Text="{Binding Path=MultisInformation.CorrelatedmultistableStdevs, Mode=OneWay}" /><Bold>Uncorrelated Multis Table:</Bold>
+                                    <LineBreak/>
+                                    <Run FontSize ="12" Text="{Binding Path=MultisInformation.Uncorrelatedmultistable, Mode=OneWay}" /><Bold>Correlated Pseudo-Multis Table:</Bold>
+                                    <LineBreak/>
+                                    <Run FontSize ="12" Text="{Binding Path=MultisInformation.Correlatedpseudomultistable, Mode=OneWay}" /><Bold>Uncorrelated Pseudo-Multis Table:</Bold>
+                                    <LineBreak/>
+                                    <Run FontSize ="12" Text="{Binding Path=MultisInformation.Uncorrelatedpseudomultistable, Mode=OneWay}" /><Bold>Summary:</Bold>
+                                    <LineBreak/>
+                                    <Run FontSize ="12" Text="{Binding Path=MultisInformation.Summary, Mode=OneWay}" />
+                                </Paragraph>
+                            </FlowDocument>
+                        </RichTextBox>
                     </TabItem>
 
                     <!-- Mass Histogram IsLegendVisible="True"-->

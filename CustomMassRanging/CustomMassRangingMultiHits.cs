@@ -3,8 +3,10 @@ using Cameca.CustomAnalysis.Utilities;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Drawing;
 using System.Linq;
 using System.Numerics;
+using System.Windows.Documents;
 
 namespace CustomMassRanging
 {
@@ -688,18 +690,18 @@ namespace CustomMassRanging
             return (int)(separation / DistRes);
         }
 
-        public string MultisSummaryString(Parameters Parameters)
+        public void MultisSummaryString(Parameters Parameters, MyViewableString MultisInformation)
         {
-            string Overview = "Overview:\n";
+            string Overview = "";
             {
-                Overview += "  Occurances are tracked for various groups of ions:\n";
+                Overview += "  Occurrences are tracked for various groups of ions:\n";
                 Overview += "  Considered:   Specific ranges to include in summary table.\n";
                 Overview += "  Key Range:    Range to track computation of average values for ToF and Voltage.\n";
                 Overview += "  Other:        All other defined ranges (in ranges table--discovered only if user indicates).\n";
                 Overview += "  Unranged:     All ions between any defined ranges.\n";
-                Overview += "  Correlated:   Multi-hit ions that have seprations smaller than the critical value.\n";
-                Overview += "  Uncorrelated: Multi-hit ions that have sepratation larger than the critical value.\n";
-                Overview += "  Pseudo-multi: Consecutive sigle-ion events only, tracked for delta pulse (dp) values\n";
+                Overview += "  Correlated:   Multi-hit ions that have separations smaller than the critical value.\n";
+                Overview += "  Uncorrelated: Multi-hit ions that have separation larger than the critical value.\n";
+                Overview += "  Pseudo-multi: Consecutive single-ion events only, tracked for delta pulse (dp) values\n";
                 Overview += "                out to some maximum dp time/pulse separation value.\n";
                 Overview += "\n";
                 Overview += $"  Note: Double events in tables represent any pair of events--there is over representation\n";
@@ -708,8 +710,9 @@ namespace CustomMassRanging
                 Overview += $"    Overcounting not possible with pseudo-double definitions.\n";
                 Overview += $"\n";
             }
+            MultisInformation.Overview = Overview;
 
-            string SimpleDescriptors = "Simple Multi-Hit Descriptors:\n";
+            string SimpleDescriptors = "";
             {
                 SimpleDescriptors += $"{"Oana PME (event probability):",52}";
                 SimpleDescriptors += $"{(double)(eventPulses - singles[N + 2]) / (double)eventPulses,13:P2}\n";
@@ -721,123 +724,16 @@ namespace CustomMassRanging
                 int missingCountsTotal = 0;
                 for (int i = 0; i < N; i++) missingCountsTotal += missingCounts[i];
                 SimpleDescriptors += $"{(double)(multiIonTrueCounts[N + 2, 0] + missingCountsTotal) / (double)(totIonCounts[N + 2] + missingCountsTotal),13:P2}\n";
-
+                SimpleDescriptors += $"{"Deadtime:",52}";
+                SimpleDescriptors += $"{(double)missingCountsTotal / (double)(totIonCounts[N + 2]+missingCountsTotal),13:P2}\n";
+                SimpleDescriptors += $"{"Cor. Same-Same Detected:",52}";
+                SimpleDescriptors += $"{(double)(dpCorMultis[N + 2, N + 2, 0]) / (double)(dpCorMultis[N + 2,N + 2,0] + missingCountsTotal),13:P2}\n";
                 SimpleDescriptors += $"\n";
             }
-
-            string Summary = "Summary:\n";
-            {
-                string ConsideredRanges = $"Considered Ranges:     {N,5:N0}\n";
-                for (int i = 0; i < rangeMins.Count(); i++)
-                    ConsideredRanges += $"                           {i} {rangeNames[i],7}: {rangeMins[i],7:N3} - {rangeMaxs[i],7:N3}\n";
-
-                Summary += $"  Total Defined Ranges:  {NTotal,5:N0}\n";
-                Summary += $"  Key Range:                   {rangeNames[keyRange],7}: {rangeMins[keyRange],7:N3} - {rangeMaxs[keyRange],7:N3}\n";
-                Summary += $"  {ConsideredRanges}";
-                Summary += $"  Separation Critical Value: {critSep:N1}\n";
-                Summary += $"  Pseudo-Multi Max dp:       {DPMax:N0}\n";
-                Summary += $"\n";
-                Summary += $"  Multi Events:          {(double)(eventPulses - singles[N + 2]) / (double)(eventPulses),17:P1}\n";
-                Summary += $"  Multi Ions:            {(double)(totIonCounts[N + 2] - singles[N + 2]) / (double)(eventPulses),17:P1}\n";
-                Summary += $"  Total Event Pulses:    {eventPulses,17:N0}\n";
-                Summary += $"  Total Ions:            {totIonCounts[N + 2],17:N0}\n";
-                Summary += $"  Total Multi Ions:      {dpHistogram[0],17:N0}\n";
-                Summary += $"  Total Multis Table:    {dpMultis[N + 2, N + 2, 0],17:N0}\n";
-
-                //hreg 0 = ranged, 1 = all
-                string HregSummary = "\nMulti-dp=0 Distribution:   ";
-                {
-                    for (int i = 0; i < HREGMax - 1; i++)
-                        HregSummary += $"{hregNames[i],13}";
-                    HregSummary += $"{"higher",13}"; //hreg should have single, doubles, ... HREGMax-1 contains HREGMax and larger multiples
-                    HregSummary += $"{"total",13}";
-
-                    HregSummary += "\n      All Events:          ";
-                    for (int i = 0; i < HREGMax; i++)
-                        HregSummary += $"{hreg[i, 1],13:N0}";
-                    HregSummary += $"{eventPulses,13:N0}";
-
-                    HregSummary += "\n      All Weighted:        ";
-                    for (int i = 0; i < HREGMax - 1; i++)
-                        HregSummary += $"{hreg[i, 1] * (i + 1),13:N0}";
-                    int totalWeighted = 0;
-                    for (int i = 1; i < HREGMax - 1; i++) totalWeighted += hreg[i, 1] * (i + 1);
-                    //dpHistogram[0] is total number of dp=0 multis
-                    HregSummary += $"{dpHistogram[0] - totalWeighted,13:N0}";
-                    HregSummary += $"{hreg[0, 1] + dpHistogram[0],13:N0}";
-
-                    float norm = (float)(hreg[0, 1] + dpHistogram[0]);
-                    HregSummary += "\n      All Weighted:        ";
-                    for (int i = 0; i < HREGMax - 1; i++)
-                        HregSummary += $"{(float)(hreg[i, 1] * (i + 1)) / norm,13:P2}";
-                    HregSummary += $"{(float)(dpHistogram[0] - totalWeighted) / norm,13:P2}";
-                    HregSummary += $"{(float)(hreg[0, 1] + dpHistogram[0]) / norm,13:P0}";
-
-                    HregSummary += "\n      Considered Events:   ";
-                    for (int i = 0; i < HREGMax; i++)
-                        HregSummary += $"{hreg[i, 0],13:N0}";
-                    HregSummary += $"{totIonCounts[N + 2] - totIonCounts[N + 1] - totIonCounts[N],13:N0}";
-                    HregSummary += "\n";
-                }
-
-                Summary += $"{HregSummary}";
-                Summary += "\n";
-                //dpMultis[N+3][N+3][DPMax+1]
-                //dpMultis[range1][r2>=r1][dp so DPMax+1] 0, 1, ... DPMax
-                Summary += $"Multis dp=0:\n";
-                Summary += $"  All:                     {dpMultis[N + 2, N + 2, 0],13:N0}\n";
-                Summary += $"  Considered:              {getConsideredTotal(dpMultis, 0),13:N0}\n";
-                Summary += $"  Considered & Correlated: {getConsideredTotal(dpCorMultis, 0),13:N0}\n";
-                Summary += $"  Considered & Uncorr:     {getConsideredTotal(dpUncMultis, 0),13:N0}\n";
-                Summary += "\n";
-                Summary += $"Pseudo-Doubles dp=1...{DPMax:N0}:\n";
-                int sum = 0; for (int dp = 1; dp <= DPMax; dp++) sum += dpMultis[N + 2, N + 2, dp];
-                Summary += $"  All:                     {sum,13:N0}\n";
-                sum = 0; for (int dp = 1; dp <= DPMax; dp++) sum += (getConsideredTotal(dpMultis, dp));
-                Summary += $"  Considered:              {sum,13:N0}\n";
-                sum = 0; for (int dp = 1; dp <= DPMax; dp++) sum += (getConsideredTotal(dpCorMultis, dp));
-                Summary += $"  Considered & Correlated: {sum,13:N0}\n";
-                sum = 0; for (int dp = 1; dp <= DPMax; dp++) sum += (getConsideredTotal(dpUncMultis, dp));
-                Summary += $"  Considered & UnCorr:     {sum,13:N0}\n";
-                Summary += "\n";
-                Summary += $"DR:          {aveDR:P3}\n";
-                Summary += $"ToF:       {aveToF:N0} \u00B1 {stdevToF:N0} ns\n";
-                Summary += $"Voltage: {aveVolt:N0} \u00B1 {stdevVolt:N0} V\n";
-                Summary += "\n";
-
-                Summary += "Looking for trends with Pseudo Multis:\n";
-                float SS0 = (float)(getSSConsideredTotal(dpCorMultis, 0));
-                float SSp0 = (float)(getSSpConsideredTotal(dpCorMultis, 0));
-                float SSp1 = (float)(getSSpConsideredTotal(dpCorMultis, 1));
-                float SS1 = (float)(getSSConsideredTotal(dpCorMultis, 1));
-                float SS0FractionDetected = SS0 / SSp0 * SSp1 / SS1;
-                Summary += "  S=Same, S'=Not Same, 0: dp=0 or same pulse, 1: dp=1 or adjacent pulses\n";
-                Summary += $"  SS0:  {SS0,13:N0}\n";
-                Summary += $"  SS'0: {SSp0,13:N0}\n";
-                Summary += $"  SS1:  {SS1,13:N0}\n";
-                Summary += $"  SS'1: {SSp1,13:N0}\n";
-                Summary += $"  Corr: SS0/SS'0 / SS1/SS'1 = {SS0FractionDetected:P2}\n";
-                Summary += $"  Correlated same-same/not-same ratio for same-pulse multis vs. psudo-multis\n";
-                Summary += $"  (Deadtime affected/not deadtime affected same-pulse vs. same ratio with no deadtime effect)\n\n";
-
-                SS0 = (float)(getSSConsideredTotal(dpUncMultis, 0));
-                SSp0 = (float)(getSSpConsideredTotal(dpUncMultis, 0));
-                SSp1 = (float)(getSSpConsideredTotal(dpUncMultis, 1));
-                SS1 = (float)(getSSConsideredTotal(dpUncMultis, 1));
-                SS0FractionDetected = SS0 / SSp0 * SSp1 / SS1;
-                Summary += $"  SS0:  {SS0,13:N0}\n";
-                Summary += $"  SS'0: {SSp0,13:N0}\n";
-                Summary += $"  SS1:  {SS1,13:N0}\n";
-                Summary += $"  SS'1: {SSp1,13:N0}\n";
-                Summary += $"  Uncorr: SS0/SS'0 / SS1/SS'1 = {SS0FractionDetected:P2}\n";
-                Summary += $"  Uncorrelated same-same/not-same ratio for same-pulse multis vs. psudo-multis\n";
-                Summary += $"  (mostly unaffected/not deadtime affected same-pulse vs. same ratio with no deadtime effect)\n";
-                Summary += $"  (these are approximately predictable, governed mainly by Poisson statistics --> 100%)\n";
-                Summary += "\n";
-            }
+            MultisInformation.Simple = SimpleDescriptors;
 
             double[] DeadCor = new double[N];
-            string PCMETable = "Information by Ion Type:\n";
+            string PCMETable = "";
             {
                 PCMETable += $"{"",15}";
                 for (int i = 0; i < N + 3; i++)
@@ -920,8 +816,9 @@ namespace CustomMassRanging
                 PCMETable += $"\n";
                 PCMETable += $"\n";
             }
+            MultisInformation.Infobyiontype = PCMETable;
 
-            string CorrelatedTable = $"Correlated Multis Table All Multi-Hit Pairs: dpMultis[First Ion,Second Ion,dp=0]\n{"",13}";
+            string CorrelatedTable = $"All Multi-Hit Pairs: dpMultis[First Ion,Second Ion,dp=0]\n{"",13}";
             {
                 for (int i = 0; i < N + 3; i++)
                     CorrelatedTable += $"{rangeNames[i],13}";
@@ -937,8 +834,15 @@ namespace CustomMassRanging
                 for (int i = 0; i < N; i++)
                     CorrelatedTable += $"{missingCounts[i],13:N0}";
                 CorrelatedTable += "\n";
+                
+                CorrelatedTable += $"{"SS Det. Eff.:",13}";
+                for (int i = 0; i < N; i++)
+                    CorrelatedTable += $"{(double)dpCorMultis[i, i, 0] / (double)(dpCorMultis[i, i, 0]+missingCounts[i]),13:P2}";
+                CorrelatedTable += "\n";
+
                 CorrelatedTable += "\n";
             }
+            MultisInformation.Correlatedmultistable = CorrelatedTable;
 
             int totSelectedCorrelatedTableAndMissing = 0;
             for (int i = 0; i < N; i++)
@@ -949,7 +853,7 @@ namespace CustomMassRanging
             }
 
             double totTerm = 0d;
-            string CorrelatedFixedNormalizedTable = $"Ratio: Correlated Multis + Missing : Composition Weighted, Same Total Multis Expected\n{"",13}";
+            string CorrelatedFixedNormalizedTable = $"Correlated Multis + Missing : Composition Weighted, Same Total Multis Expected\n{"",13}";
             {
                 for (int i = 0; i < N; i++)
                     CorrelatedFixedNormalizedTable += $"{rangeNames[i],13}";
@@ -978,44 +882,47 @@ namespace CustomMassRanging
                 //CorrelatedFixedNormalizedTable += $"Table Total: {totTerm,13:N3}\n";
                 CorrelatedFixedNormalizedTable += "\n";
             }
+            MultisInformation.CorrelatedmultistableNormalized = CorrelatedFixedNormalizedTable;
+
             //a la Saxey
-            CorrelatedFixedNormalizedTable += $"Saxey: #Stdevs of (Correlated Multis + Missing - Composition Weighted, Same Total Multis Expected): Saxey Correlated Multis + Missing\n{"",13}";
-            CorrelatedFixedNormalizedTable += $"Saxey based his expected on random, but I don't see that he predicted via detection rate, so mayble like mine-ish?\n{"",13}";
+            string CorrelatedFixedStdevTable = $"Saxey: #Stdevs of (Correlated Multis + Missing - Composition Weighted, Same Total Multis Expected): Saxey Correlated Multis + Missing\n{"",13}";
+            CorrelatedFixedStdevTable += $"Saxey based his expected on random, but I don't see that he predicted via detection rate, so mayble like mine-ish?\n{"",13}";
             {
                 {
                     totTerm = 0d;
                     for (int i = 0; i < N; i++)
-                        CorrelatedFixedNormalizedTable += $"{rangeNames[i],13}";
-                    CorrelatedFixedNormalizedTable += "\n";
+                        CorrelatedFixedStdevTable += $"{rangeNames[i],13}";
+                    CorrelatedFixedStdevTable += "\n";
                     for (int i = 0; i < N; i++)
                     {
-                        CorrelatedFixedNormalizedTable += $"{rangeNames[i],13}";
+                        CorrelatedFixedStdevTable += $"{rangeNames[i],13}";
                         for (int j = 0; j < N; j++)
                         {
-                            if (j < i) CorrelatedFixedNormalizedTable += $"{"",13}";
+                            if (j < i) CorrelatedFixedStdevTable += $"{"",13}";
                             else if (i != j)
                             {
                                 double eij = (2d * DeadCor[i] * DeadCor[j] * (double)totSelectedCorrelatedTableAndMissing);
                                 double term = (double)(dpCorMultis[i, j, 0] + dpCorMultis[j, i, 0] - (int)eij) / Math.Sqrt(eij);
                                 totTerm += term;
-                                CorrelatedFixedNormalizedTable += $"{term,13:N1}";
+                                CorrelatedFixedStdevTable += $"{term,13:N1}";
                             }
                             else
                             {
                                 double eij = DeadCor[i] * DeadCor[j] * (double)totSelectedCorrelatedTableAndMissing;
                                 double term = (double)(dpCorMultis[i, j, 0] + missingCounts[i] - (int)eij) / Math.Sqrt(eij);
                                 totTerm += term;
-                                CorrelatedFixedNormalizedTable += $"{term,13:N1}";
+                                CorrelatedFixedStdevTable += $"{term,13:N1}";
                             }
                         }
-                        CorrelatedFixedNormalizedTable += "\n";
+                        CorrelatedFixedStdevTable += "\n";
                     }
-                    //CorrelatedFixedNormalizedTable += $"Table Total: {totTerm,13:N3}\n";
-                    CorrelatedFixedNormalizedTable += "\n";
+                    //CorrelatedFixedStdevTable += $"Table Total: {totTerm,13:N3}\n";
+                    CorrelatedFixedStdevTable += "\n";
                 }
             }
+            MultisInformation.CorrelatedmultistableStdevs = CorrelatedFixedNormalizedTable;
 
-            string UncorrelatedTable = $"Uncorrelated Multis Table All Multi-Hit Pairs: dpMultis[First Ion,Second Ion,dp=0]\n{"",13}";
+            string UncorrelatedTable = $"All Multi-Hit Pairs: dpMultis[First Ion,Second Ion,dp=0]\n{"",13}";
             {
                 for (int i = 0; i < N + 3; i++)
                     UncorrelatedTable += $"{rangeNames[i],13}";
@@ -1029,23 +936,9 @@ namespace CustomMassRanging
                 }
                 UncorrelatedTable += "\n";
             }
+            MultisInformation.Uncorrelatedmultistable = UncorrelatedTable;
 
-            string UncorrelatedPseudoTable = $"Uncorrelated Pseudo-Multis Table All: dpMultis[First Ion,Second Ion,dp=1...{Parameters.IPseudoMultiMaxdp}]\n{"",13}";
-            {
-                for (int i = 0; i < N + 3; i++)
-                    UncorrelatedPseudoTable += $"{rangeNames[i],13}";
-                UncorrelatedPseudoTable += "\n";
-                for (int i = 0; i < N + 3; i++)
-                {
-                    UncorrelatedPseudoTable += $"{rangeNames[i],13}";
-                    for (int j = 0; j < N + 3; j++)
-                        UncorrelatedPseudoTable += $"{dpUncMultis[i, j, Parameters.IPseudoMultiMaxdp + 1],13:N0}";
-                    UncorrelatedPseudoTable += "\n";
-                }
-                UncorrelatedPseudoTable += "\n";
-            }
-
-            string CorrelatedPseudoTable = $"Correlated Pseudo-Multis Table All: dpMultis[First Ion,Second Ion,dp=1...{Parameters.IPseudoMultiMaxdp}]\n{"",13}";
+            string CorrelatedPseudoTable = $"All: dpMultis[First Ion,Second Ion,dp=1...{Parameters.IPseudoMultiMaxdp}]\n{"",13}";
             {
                 for (int i = 0; i < N + 3; i++)
                     CorrelatedPseudoTable += $"{rangeNames[i],13}";
@@ -1059,8 +952,146 @@ namespace CustomMassRanging
                 }
                 CorrelatedPseudoTable += "\n";
             }
+            MultisInformation.Correlatedpseudomultistable = CorrelatedPseudoTable;
+            
+            string UncorrelatedPseudoTable = $"All: dpMultis[First Ion,Second Ion,dp=1...{Parameters.IPseudoMultiMaxdp}]\n{"",13}";
+            {
+                for (int i = 0; i < N + 3; i++)
+                    UncorrelatedPseudoTable += $"{rangeNames[i],13}";
+                UncorrelatedPseudoTable += "\n";
+                for (int i = 0; i < N + 3; i++)
+                {
+                    UncorrelatedPseudoTable += $"{rangeNames[i],13}";
+                    for (int j = 0; j < N + 3; j++)
+                        UncorrelatedPseudoTable += $"{dpUncMultis[i, j, Parameters.IPseudoMultiMaxdp + 1],13:N0}";
+                    UncorrelatedPseudoTable += "\n";
+                }
+                UncorrelatedPseudoTable += "\n";
+            }
+            MultisInformation.Uncorrelatedpseudomultistable = UncorrelatedPseudoTable;
 
-            return Overview + SimpleDescriptors + PCMETable + CorrelatedTable + CorrelatedFixedNormalizedTable + UncorrelatedTable + CorrelatedPseudoTable + UncorrelatedPseudoTable + Summary;
+            string Summary = "";
+            {
+                string ConsideredRanges = $"Considered Ranges:     {N,5:N0}\n";
+                for (int i = 0; i < rangeMins.Count(); i++)
+                    ConsideredRanges += $"                           {i} {rangeNames[i],7}: {rangeMins[i],7:N3} - {rangeMaxs[i],7:N3}\n";
+
+                Summary += $"  Total Defined Ranges:  {NTotal,5:N0}\n";
+                Summary += $"  Key Range:                   {rangeNames[keyRange],7}: {rangeMins[keyRange],7:N3} - {rangeMaxs[keyRange],7:N3}\n";
+                Summary += $"  {ConsideredRanges}";
+                Summary += $"  Separation Critical Value: {critSep:N1}\n";
+                Summary += $"  Pseudo-Multi Max dp:       {DPMax:N0}\n";
+                Summary += $"\n";
+                Summary += $"  Multi Events:          {(double)(eventPulses - singles[N + 2]) / (double)(eventPulses),17:P1}\n";
+                Summary += $"  Multi Ions:            {(double)(totIonCounts[N + 2] - singles[N + 2]) / (double)(eventPulses),17:P1}\n";
+                Summary += $"  Total Event Pulses:    {eventPulses,17:N0}\n";
+                Summary += $"  Total Ions:            {totIonCounts[N + 2],17:N0}\n";
+                Summary += $"  Total Multi Ions:      {dpHistogram[0],17:N0}\n";
+                Summary += $"  Total Multis Table:    {dpMultis[N + 2, N + 2, 0],17:N0}\n";
+
+                //hreg 0 = ranged, 1 = all
+                string HregSummary = "\n  Multi-dp=0 Distribution:   ";
+                {
+                    for (int i = 0; i < HREGMax - 1; i++)
+                        HregSummary += $"{hregNames[i],13}";
+                    HregSummary += $"{"higher",13}"; //hreg should have single, doubles, ... HREGMax-1 contains HREGMax and larger multiples
+                    HregSummary += $"{"total",13}";
+
+                    HregSummary += "\n      All Events:          ";
+                    for (int i = 0; i < HREGMax; i++)
+                        HregSummary += $"{hreg[i, 1],13:N0}";
+                    HregSummary += $"{eventPulses,13:N0}";
+
+                    HregSummary += "\n      All Weighted:        ";
+                    for (int i = 0; i < HREGMax - 1; i++)
+                        HregSummary += $"{hreg[i, 1] * (i + 1),13:N0}";
+                    int totalWeighted = 0;
+                    for (int i = 1; i < HREGMax - 1; i++) totalWeighted += hreg[i, 1] * (i + 1);
+                    //dpHistogram[0] is total number of dp=0 multis
+                    HregSummary += $"{dpHistogram[0] - totalWeighted,13:N0}";
+                    HregSummary += $"{hreg[0, 1] + dpHistogram[0],13:N0}";
+
+                    float norm = (float)(hreg[0, 1] + dpHistogram[0]);
+                    HregSummary += "\n      All Weighted:        ";
+                    for (int i = 0; i < HREGMax - 1; i++)
+                        HregSummary += $"{(float)(hreg[i, 1] * (i + 1)) / norm,13:P2}";
+                    HregSummary += $"{(float)(dpHistogram[0] - totalWeighted) / norm,13:P2}";
+                    HregSummary += $"{(float)(hreg[0, 1] + dpHistogram[0]) / norm,13:P0}";
+
+                    HregSummary += "\n      Considered Events:   ";
+                    for (int i = 0; i < HREGMax; i++)
+                        HregSummary += $"{hreg[i, 0],13:N0}";
+                    HregSummary += $"{totIonCounts[N + 2] - totIonCounts[N + 1] - totIonCounts[N],13:N0}";
+                    HregSummary += "\n";
+                }
+
+                Summary += $"{HregSummary}";
+                Summary += "\n";
+                //dpMultis[N+3][N+3][DPMax+1]
+                //dpMultis[range1][r2>=r1][dp so DPMax+1] 0, 1, ... DPMax
+                Summary += $"  Multis dp=0:\n";
+                Summary += $"    All:                     {dpMultis[N + 2, N + 2, 0],13:N0}\n";
+                Summary += $"    Considered:              {getConsideredTotal(dpMultis, 0),13:N0}\n";
+                Summary += $"    Considered & Correlated: {getConsideredTotal(dpCorMultis, 0),13:N0}\n";
+                Summary += $"    Considered & Uncorr:     {getConsideredTotal(dpUncMultis, 0),13:N0}\n";
+                Summary += "\n";
+                Summary += $"  Pseudo-Doubles dp=1...{DPMax:N0}:\n";
+                int sum = 0; for (int dp = 1; dp <= DPMax; dp++) sum += dpMultis[N + 2, N + 2, dp];
+                Summary += $"    All:                     {sum,13:N0}\n";
+                sum = 0; for (int dp = 1; dp <= DPMax; dp++) sum += (getConsideredTotal(dpMultis, dp));
+                Summary += $"    Considered:              {sum,13:N0}\n";
+                sum = 0; for (int dp = 1; dp <= DPMax; dp++) sum += (getConsideredTotal(dpCorMultis, dp));
+                Summary += $"    Considered & Correlated: {sum,13:N0}\n";
+                sum = 0; for (int dp = 1; dp <= DPMax; dp++) sum += (getConsideredTotal(dpUncMultis, dp));
+                Summary += $"    Considered & UnCorr:     {sum,13:N0}\n";
+                Summary += "\n";
+                Summary += $"  DR:         {aveDR:P3}\n";
+                Summary += $"  ToF:     {aveToF,8:N0} \u00B1 {stdevToF:N0} ns\n";
+                Summary += $"  Voltage: {aveVolt,8:N0} \u00B1 {stdevVolt:N0} V\n";
+                Summary += "\n";
+
+                Summary += "  Looking for trends with Pseudo Multis:\n";
+                float SS0 = (float)(getSSConsideredTotal(dpCorMultis, 0));
+                float SSp0 = (float)(getSSpConsideredTotal(dpCorMultis, 0));
+                float SSp1 = (float)(getSSpConsideredTotal(dpCorMultis, 1));
+                float SS1 = (float)(getSSConsideredTotal(dpCorMultis, 1));
+                float SS0FractionDetected = SS0 / SSp0 * SSp1 / SS1;
+                Summary += "    S=Same, S'=Not Same, 0: dp=0 or same pulse, 1: dp=1 or adjacent pulses\n";
+                Summary += $"    SS0:  {SS0,13:N0}\n";
+                Summary += $"    SS'0: {SSp0,13:N0}\n";
+                Summary += $"    SS1:  {SS1,13:N0}\n";
+                Summary += $"    SS'1: {SSp1,13:N0}\n";
+                Summary += $"    Corr: SS0/SS'0 / SS1/SS'1 = {SS0FractionDetected:P2}\n";
+                Summary += $"    Correlated same-same/not-same ratio for same-pulse multis vs. psudo-multis\n";
+                Summary += $"    (Deadtime affected/not deadtime affected same-pulse vs. same ratio with no deadtime effect)\n\n";
+
+                SS0 = (float)(getSSConsideredTotal(dpUncMultis, 0));
+                SSp0 = (float)(getSSpConsideredTotal(dpUncMultis, 0));
+                SSp1 = (float)(getSSpConsideredTotal(dpUncMultis, 1));
+                SS1 = (float)(getSSConsideredTotal(dpUncMultis, 1));
+                SS0FractionDetected = SS0 / SSp0 * SSp1 / SS1;
+                Summary += $"    SS0:  {SS0,13:N0}\n";
+                Summary += $"    SS'0: {SSp0,13:N0}\n";
+                Summary += $"    SS1:  {SS1,13:N0}\n";
+                Summary += $"    SS'1: {SSp1,13:N0}\n";
+                Summary += $"    Uncorr: SS0/SS'0 / SS1/SS'1 = {SS0FractionDetected:P2}\n";
+                Summary += $"    Uncorrelated same-same/not-same ratio for same-pulse multis vs. psudo-multis\n";
+                Summary += $"    (mostly unaffected/not deadtime affected same-pulse vs. same ratio with no deadtime effect)\n";
+                Summary += $"    (these are approximately predictable, governed mainly by Poisson statistics --> 100%)\n";
+                Summary += "\n";
+            }
+            MultisInformation.Summary = Summary;
+
+            MultisInformation.Value = "Overview:\n" + MultisInformation.Overview + 
+                "\n\nSimple Descriptors:\n" + MultisInformation.Simple + 
+                "\n\nPCME Table:\n" + MultisInformation.Infobyiontype + 
+                "\n\nCorrelated Multis Table:\n" + MultisInformation.Correlatedmultistable + 
+                "\n\nCorrelated Multis Table Normalized:\n" + MultisInformation.CorrelatedmultistableNormalized + 
+                "\n\nCorrelated Multis Table Stdevs:\n" + MultisInformation.CorrelatedmultistableStdevs + 
+                "\n\nUncorrelated Multis Table:\n" + MultisInformation.Uncorrelatedmultistable + 
+                "\n\nCorrelated Pseudo-Multis Table:\n" + MultisInformation.Correlatedpseudomultistable + 
+                "\n\nUncorrelated Pseudo-Multis Table:\n" + MultisInformation.Uncorrelatedpseudomultistable + 
+                "\n\nSummary:\n" + MultisInformation.Summary;
         }
 
         public int getConsideredTotal(int[,,] array, int dp)

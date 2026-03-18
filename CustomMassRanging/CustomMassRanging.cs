@@ -3,6 +3,7 @@ using Cameca.CustomAnalysis.Utilities;
 using CommunityToolkit.HighPerformance;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Google.Protobuf.Reflection;
 using System;
 using System.Collections.Generic; //IEnumerable<>
 using System.Collections.ObjectModel;
@@ -82,8 +83,6 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
     public CompositionTableTotals IonicCompositionTotals { get; set; } = new();
     public ObservableCollection<CompositionTableEntries> DecomposedCompositionTable { get; } = new();
     public CompositionTableTotals DecomposedCompositionTotals { get; set; } = new();
-
-    //[Display(Name = "MultisInformation", AutoGenerateField = true, Description = "Multihit Information")]
     public MyViewableString MultisInformation { get; set; } = new();
 
     //values is the class that does all the processing of the coarsened mass spectrum
@@ -512,8 +511,7 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
         SepHistogramData.Clear();
 
         MultiHits multiHits = new(ionData, values!.Values, useRanges, RangesTable, Parameters);
-        MultisInformation.Value = String.Empty;
-        MultisInformation.Value = multiHits.MultisSummaryString(Parameters);
+        multiHits.MultisSummaryString(Parameters, MultisInformation);
 
         // Create the sep histogram data to be added to the chart in the view
         int numPlots = 6;
@@ -1526,9 +1524,69 @@ public enum RangeScheme
 public partial class MyViewableString : ObservableObject
 {
     private string value = string.Empty;
+    private string overview = string.Empty; 
+    private string simple = string.Empty;
+    private string infobyiontype = string.Empty;
+    private string correlatedmultistable = string.Empty;
+    private string correlatedmultistableNormalized = string.Empty;
+    private string correlatedmultistableStdevs = string.Empty;
+    private string uncorrelatedmultistable = string.Empty;
+    private string correlatedpseudomultistable = string.Empty;
+    private string uncorrelatedpseudomultistable = string.Empty;
+    private string summary = string.Empty;
     public string Value
     {
         get => value;
         set => SetProperty(ref this.value, value);
+    }
+    public string Overview
+    {
+        get => overview;
+        set => SetProperty(ref this.overview, value);
+    }
+    public string Simple
+    {
+        get => simple;
+        set => SetProperty(ref this.simple, value);
+    }
+    public string Infobyiontype
+    {
+        get => infobyiontype;
+        set => SetProperty(ref this.infobyiontype, value);
+    }
+    public string Correlatedmultistable
+    {
+        get => correlatedmultistable;
+        set => SetProperty(ref this.correlatedmultistable, value);
+    }
+    public string CorrelatedmultistableNormalized
+    {
+        get => correlatedmultistableNormalized;
+        set => SetProperty(ref this.correlatedmultistableNormalized, value);
+    }
+    public string CorrelatedmultistableStdevs
+    {
+        get => correlatedmultistableStdevs;
+        set => SetProperty(ref this.correlatedmultistableStdevs, value);
+    }
+    public string Uncorrelatedmultistable
+    {
+        get => uncorrelatedmultistable;
+        set => SetProperty(ref this.uncorrelatedmultistable, value);
+    }
+    public string Correlatedpseudomultistable
+    {
+        get => correlatedpseudomultistable;
+        set => SetProperty(ref this.correlatedpseudomultistable, value);
+    }
+    public string Uncorrelatedpseudomultistable
+    {
+        get => uncorrelatedpseudomultistable;
+        set => SetProperty(ref this.uncorrelatedpseudomultistable, value);
+    }
+    public string Summary
+    {
+        get => summary;
+        set => SetProperty(ref this.summary, value);
     }
 }
