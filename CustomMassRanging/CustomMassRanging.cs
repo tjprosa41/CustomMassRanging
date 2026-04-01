@@ -1429,6 +1429,7 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
             double rightBgd = 0.0d;
             values?.DetermineRange((float)MinSortedRangesTable[i].Pos, MinSortedRangesTable[i].Scheme, Parameters, ref left, ref right, ref netMax, ref raw, ref leftBgd, ref rightBgd);
 
+            //new need to modify here for missing
             RangesTableEntries newSortedRangesTable = new(MinSortedRangesTable[i].Name, MinSortedRangesTable[i].MultiUse, MinSortedRangesTable[i].Pos, netMax, raw, MinSortedRangesTable[i].Formula,
                 MinSortedRangesTable[i].Volume, (double)left, (double)right, MinSortedRangesTable[i].Scheme, MinSortedRangesTable[i].Color, leftBgd, rightBgd, Parameters.dLeftRangeDelta);
 

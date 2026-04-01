@@ -100,6 +100,7 @@ namespace CustomMassRanging
             rangeNames[N + 2] = "Total";
             rangeMins = new float[N];
             rangeMaxs = new float[N];
+            /*
             j = 0;
             foreach (var range in useRanges)
             {
@@ -108,6 +109,9 @@ namespace CustomMassRanging
                 rangeMaxs[j] = (float)range.Max;
                 j++;
             }
+            */
+            for (j = 0; j < N; j++)
+                setRangeName(useRanges[j], j);
 
             //Parameters now implimented
             keyRange = 0;
@@ -162,6 +166,25 @@ namespace CustomMassRanging
                 }
             }
             FillMultisArrays(ionData);
+
+            void setRangeName(RangesTableEntries range, int j)
+            {
+                rangeNames[j] = $"{(10.0d * range.Pos / 3.0d) * 3f / 10f:N1}-{range.Name}";
+                rangeMins[j] = (float)range.Min;
+                rangeMaxs[j] = (float)range.Max;
+            }
+            int getRangeNumberFromName(string rangeName)
+            {
+                for (int i=0; i<N; i++)
+                    if (rangeNames[i].Equals(rangeName)) return i;
+                return -1; //not found
+            }
+            int getRangeNumberFromPos(float pos)
+            {
+                for (int i = 0; i < N; i++)
+                    if (pos >= rangeMins[i] && pos <= rangeMaxs[i]) return i;
+                return -1; //not found
+            }
         }
 
         private void FillMultisArrays(IIonData ionData)
@@ -1181,54 +1204,36 @@ namespace CustomMassRanging
             missingPairs = new string[N];
             bool[] done = new bool[N];
             for (int i = 0; i < N; i++)
-            {
                 missingCounts[i] = 0;
-                done[i] = false;
-            }
 
-            while (true)
+            for (int iterations = 0; iterations < 10; iterations++)
             {
-                //Go in order of most counts
-                int max = 0;
-                int maxItem = -1;
-                int maxItem2 = -1;
                 for (int i = 0; i < N; i++)
+                    done[i] = false;
+
+                while (true)
                 {
-                    if (!done[i] && totIonCounts[i] > max)
+                    //Go in order of most counts - ignoring missing corrections
+                    int max = 0;
+                    int maxItem = -1;
+                    int maxItem2 = -1;
+                    for (int i = 0; i < N; i++)
                     {
-                        maxItem = i;
-                        max = totIonCounts[i];
-                    }
-                }
-                // -1 only when everything is done
-                if (maxItem == -1) break;
-                //Most counts left determined - find matches
-                List<int> matches = new();
-                //Try for same element same charge state
-                for (int i = 0; i < N; i++)
-                    if (i != maxItem && sameElement(rangeNames[maxItem], rangeNames[i]) && sameChargeState(rangeNames[maxItem], rangeNames[i]))
-                        matches.Add(i);
-                //Found match same element same charge state
-                if (matches.Count() > 0)
-                {
-                    max = 0;
-                    maxItem2 = -1;
-                    foreach (int i in matches)
-                    {
-                        if (totIonCounts[i] > max)
+                        if (!done[i] && totIonCounts[i] > max)
                         {
-                            maxItem2 = i;
+                            maxItem = i;
                             max = totIonCounts[i];
                         }
                     }
-                }
-                //Try for same element different charge state
-                else
-                {
+                    // -1 only when everything is done
+                    if (maxItem == -1) break;
+                    //Most counts left determined - find matches
+                    List<int> matches = new();
+                    //Try for same element same charge state
                     for (int i = 0; i < N; i++)
-                        if (i != maxItem && sameElement(rangeNames[maxItem], rangeNames[i]))
+                        if (i != maxItem && sameElement(rangeNames[maxItem], rangeNames[i]) && sameChargeState(rangeNames[maxItem], rangeNames[i]))
                             matches.Add(i);
-                    //Found match same element
+                    //Found match same element same charge state
                     if (matches.Count() > 0)
                     {
                         max = 0;
@@ -1242,24 +1247,46 @@ namespace CustomMassRanging
                             }
                         }
                     }
-                    //Use strongest
+                    //Try for same element different charge state
                     else
                     {
-                        max = 0;
-                        maxItem2 = -1;
                         for (int i = 0; i < N; i++)
+                            if (i != maxItem && sameElement(rangeNames[maxItem], rangeNames[i]))
+                                matches.Add(i);
+                        //Found match same element
+                        if (matches.Count() > 0)
                         {
-                            if (i != maxItem && totIonCounts[i] > max)
+                            max = 0;
+                            maxItem2 = -1;
+                            foreach (int i in matches)
                             {
-                                maxItem2 = i;
-                                max = totIonCounts[i];
+                                if (totIonCounts[i] > max)
+                                {
+                                    maxItem2 = i;
+                                    max = totIonCounts[i];
+                                }
+                            }
+                        }
+                        //Use strongest
+                        else
+                        {
+                            max = 0;
+                            maxItem2 = -1;
+                            for (int i = 0; i < N; i++)
+                            {
+                                if (i != maxItem && totIonCounts[i] > max)
+                                {
+                                    maxItem2 = i;
+                                    max = totIonCounts[i];
+                                }
                             }
                         }
                     }
+                    //maxItem to be corrected, maxItem2 left alone
+                    determineMissingCounts(maxItem, maxItem2);
+                    missingPairs[maxItem] = rangeNames[maxItem2];
+                    done[maxItem] = true;
                 }
-                determineMissingCounts(maxItem, maxItem2);
-                missingPairs[maxItem] = rangeNames[maxItem2];
-                done[maxItem] = true;
             }
         }
 
@@ -1298,7 +1325,10 @@ namespace CustomMassRanging
 
             //double M = double(tot_doubles_ions - 2 * tot_doubles_unc) / double(tot_doubles_cor);
             double M = 2.0; //Use if not breaking higher multis overcounting doubles
-            int I = totIonCounts[i];
+
+            //int I = totIonCounts[i];
+            // changed I to include missing counts so this can be iterated to convergence
+            int I = totIonCounts[i] + missingCounts[i];
             int J = totIonCounts[j] + missingCounts[j];
 
             //Total counts
@@ -1307,18 +1337,20 @@ namespace CustomMassRanging
             double A = (double)I / (double)Total_Counts;
             double B = 1d - A;
 
-            int M_AA = dpMultis[i, i, 0];
-            int M_AB = dpMultis[i, j, 0] + dpMultis[j, i, 0];
-            int M_BB = dpMultis[j, j, 0];
+            int M_AA = dpCorMultis[i, i, 0];
+            int M_AB = dpCorMultis[i, j, 0] + dpCorMultis[j, i, 0];
+            int M_BB = dpCorMultis[j, j, 0];
             double f = 2.0 * Math.Sqrt((double)(M_AA * M_BB)) / (double)M_AB;
             double N_C = (double)M_AB / (2d * A * B);
 
             //Assume 1 of missing doubles has been detected, so M/2
-            int mcAA = (int)(M / 2.0 * (N_C * A * A - (double)M_AA));
-            int mcBB = (int)(M / 2.0 * (N_C * B * B - (double)M_BB));
+            int mcAA = (int)(M / 2.0 * (N_C * A * A - (double)(M_AA + missingCounts[i])));
+            int mcBB = (int)(M / 2.0 * (N_C * B * B - (double)(M_BB + missingCounts[j])));
 
-            if (mcAA >= 0 && mcBB >= 0)
-                missingCounts[i] = mcAA;
+            if (mcAA >= 0 && mcBB >= 0) //should we allow negative corrections for iterations?
+                //missingCounts[i] = mcAA;
+                // changed to add missing counts so this can be iterated to convergence
+                missingCounts[i] += mcAA;
         }
     }
 }

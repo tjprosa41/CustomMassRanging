@@ -22,6 +22,10 @@ namespace CustomMassRanging
         public double Counts { get; set; } = 0.0d;
         public RangeScheme? Scheme { get; set; } = null;
         public double Tail { get; set; } = 0.0d;
+        //New Missing start here...should mimic Tail?
+        public double Missing { get; set; } = 0.0d;
+        public double MissingSigma2 { get; set; } = 0.0d;
+
         public const int POINTS = 20;
         public Vector3[] LineCoordinates { get; set; } = new Vector3[POINTS];
 
