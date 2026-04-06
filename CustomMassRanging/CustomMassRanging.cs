@@ -769,6 +769,25 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
                 }
             }
         }
+
+        //Composition Updates
+        j = 0;
+        foreach (var range in RangesTable)
+        {
+            if (range.MultiUse)
+            {
+                range.Missing = multiHits.missingCounts[j];
+                range.MissingSigma2 = multiHits.missingSigma2[j];
+                j++;
+            }
+        }
+
+        IonicCompositionTable.Clear();
+        CreateIonicCompositionTable();
+
+        DecomposedCompositionTable.Clear();
+        CreateDecomposedCompositionTable();
+
         Parameters.multisUpdated = true;
     }
 
@@ -1156,6 +1175,8 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
         double Total_Net = 0.0d;
         double Total_Tail = 0.0d;
         double Total_BgdSigma2 = 0.0d;
+        double Total_Missing = 0.0d;
+        double Total_MissingSigma2 = 0.0d;
         foreach (var entry in DecomposedCompositionTable)
         {
             Total_Counts += entry.Counts;
@@ -1163,6 +1184,8 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
             Total_Net += entry.Net;
             Total_Tail += entry.Tail;
             Total_BgdSigma2 += entry.BgdSigma2;
+            Total_Missing += entry.Missing;
+            Total_MissingSigma2 += entry.MissingSigma2;
         }
 
         //Statistical Test for detection
@@ -1176,12 +1199,16 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
                 Total_Net -= entry.Net;
                 Total_Tail -= entry.Tail;
                 Total_BgdSigma2 -= entry.BgdSigma2;
+                Total_Missing -= entry.Missing;
+                Total_MissingSigma2 -= entry.MissingSigma2;
                 entry.DT = 4.65d * Math.Sqrt(entry.BgdSigma2);
+                entry.DTMissing = 4.65d * Math.Sqrt(entry.BgdSigma2);
             }
         }
 
         //Compute compositions and errors
         double Total_Composition = 0.0d;
+        double Total_CompositionMissing = 0.0d;
         foreach (var entry in DecomposedCompositionTable)
         {
             if (entry.DT > 0.0d)
@@ -1198,14 +1225,32 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
                     / Total_Net / Total_Net;
                 Total_Composition += entry.Composition;
             }
+            if (entry.DTMissing > 0.0d)
+            {
+                entry.Composition = -1.0d;
+                entry.DTMissing /= (Total_Net + Total_Missing);
+            }
+            else
+            {
+                entry.CompositionMissing = (entry.Net + entry.Missing) / (Total_Net + Total_Missing);
+                double Nc = Total_Net + Total_Missing - entry.Net - entry.Missing;
+                double Bc = Total_Bgd - entry.Bgd;
+                entry.SigmaMissing = Math.Sqrt((entry.Net + entry.Missing + entry.BgdSigma2 + entry.MissingSigma2)
+                    * (Nc - Bc) * (Nc - Bc) + (Nc + Bc) * (entry.Net + entry.Missing - entry.BgdSigma2 - entry.MissingSigma2)
+                    * (entry.Net + entry.Missing - entry.BgdSigma2 - entry.MissingSigma2))
+                    / (Total_Net + Total_Missing) / (Total_Net + Total_Missing);
+                Total_CompositionMissing += entry.CompositionMissing;
+            }
             CreateOutputString(entry);
         }
         //CompositionTableEntries DecomposedCompositionTotals = new(Total_Composition, Total_Counts, Total_Net, Total_Bgd, Total_Tail);
         DecomposedCompositionTotals.Composition = Total_Composition;
+        DecomposedCompositionTotals.CompositionMissing = Total_CompositionMissing;
         DecomposedCompositionTotals.Counts = Total_Counts;
         DecomposedCompositionTotals.Net = Total_Net;
         DecomposedCompositionTotals.Bgd = Total_Bgd;
         DecomposedCompositionTotals.Tail = Total_Tail;
+        DecomposedCompositionTotals.Missing = Total_Missing;
     }
 
     private void CreateOutputString(CompositionTableEntries entry)
@@ -1269,10 +1314,70 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
                     break;
             }
         }
+        if (entry.CompositionMissing < 0.0d)
+        {
+            entry.CompositionMissingString = "-ND-";
+            int precision = 1;
+            while (Math.Pow(10, -precision) > entry.DT) precision++;
+            switch (precision)
+            {
+                case 1:
+                    entry.SigmaMissingString = $"{entry.DT:P0}";
+                    break;
+                case 2:
+                    entry.SigmaMissingString = $"{entry.DT:P1}";
+                    break;
+                case 3:
+                    entry.SigmaMissingString = $"{entry.DT:P2}";
+                    break;
+                case 4:
+                    entry.SigmaMissingString = $"{entry.DT:P3}";
+                    break;
+                case 5:
+                    entry.SigmaMissingString = $"{entry.DT:P4}";
+                    break;
+                default:
+                    entry.SigmaMissingString = $"{entry.DT:P5}";
+                    break;
+            }
+        }
+        else
+        {
+            int precision = 1;
+            while (Math.Pow(10, -precision) > entry.SigmaMissing) precision++;
+            switch (precision)
+            {
+                case 1:
+                    entry.CompositionMissingString = $"{entry.CompositionMissing:P0}";
+                    entry.SigmaMissingString = $"{entry.SigmaMissing:P0}";
+                    break;
+                case 2:
+                    entry.CompositionMissingString = $"{entry.CompositionMissing:P1}";
+                    entry.SigmaMissingString = $"{entry.SigmaMissing:P1}";
+                    break;
+                case 3:
+                    entry.CompositionMissingString = $"{entry.CompositionMissing:P2}";
+                    entry.SigmaMissingString = $"{entry.SigmaMissing:P2}";
+                    break;
+                case 4:
+                    entry.CompositionMissingString = $"{entry.CompositionMissing:P3}";
+                    entry.SigmaMissingString = $"{entry.SigmaMissing:P3}";
+                    break;
+                case 5:
+                    entry.CompositionMissingString = $"{entry.CompositionMissing:P4}";
+                    entry.SigmaMissingString = $"{entry.SigmaMissing:P4}";
+                    break;
+                default:
+                    entry.CompositionMissingString = $"{entry.CompositionMissing:P5}";
+                    entry.SigmaMissingString = $"{entry.SigmaMissing:P5}";
+                    break;
+            }
+        }
     }
 
     private void CreateIonicCompositionTable()
     {
+        //Copy RangesTable into IonicCompositionTable
         foreach (var range in RangesTable)
         {
             CompositionTableEntries ionicCompositionTableEntry = new(range);
@@ -1304,6 +1409,8 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
         double Total_Net = 0.0d;
         double Total_Tail = 0.0d;
         double Total_BgdSigma2 = 0.0d;
+        double Total_Missing = 0.0d;
+        double Total_MissingSigma2 = 0.0d;
         foreach (var entry in IonicCompositionTable)
         {
             Total_Counts += entry.Counts;
@@ -1311,6 +1418,8 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
             Total_Net += entry.Net;
             Total_Tail += entry.Tail;
             Total_BgdSigma2 += entry.BgdSigma2;
+            Total_Missing += entry.Missing;
+            Total_MissingSigma2 += entry.MissingSigma2;
         }
 
         //Statistical Test for detection
@@ -1323,12 +1432,16 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
                 Total_Net -= entry.Net;
                 Total_Tail -= entry.Tail;
                 Total_BgdSigma2 -= entry.BgdSigma2;
+                Total_Missing -= entry.Missing;
+                Total_MissingSigma2 -= entry.MissingSigma2;
                 entry.DT = 4.65d * Math.Sqrt(entry.BgdSigma2);
+                entry.DTMissing = 4.65d * Math.Sqrt(entry.BgdSigma2);
             }
         }
 
         //Compute compositions and errors
         double Total_Composition = 0.0d;
+        double Total_CompositionMissing = 0.0d;
         foreach (var entry in IonicCompositionTable)
         {
             if (entry.DT > 0.0d)
@@ -1345,13 +1458,31 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
                     / Total_Net / Total_Net;
                 Total_Composition += entry.Composition;
             }
+            if (entry.DTMissing > 0.0d)
+            {
+                entry.CompositionMissing = -1.0d;
+                entry.DTMissing /= (Total_Net + Total_Missing);
+            }
+            else
+            {
+                entry.CompositionMissing = (entry.Net + entry.Missing) / (Total_Net + Total_Missing);
+                double Nc = Total_Net + Total_Missing - entry.Net - entry.Missing;
+                double Bc = Total_Bgd - entry.Bgd;
+                entry.SigmaMissing = Math.Sqrt((entry.Net + entry.Missing + entry.BgdSigma2 + entry.MissingSigma2)
+                    * (Nc - Bc) * (Nc - Bc) + (Nc + Bc) * (entry.Net + entry.Missing - entry.BgdSigma2 - entry.MissingSigma2)
+                    * (entry.Net + entry.Missing - entry.BgdSigma2 - entry.MissingSigma2))
+                    / (Total_Net + Total_Missing) / (Total_Net + Total_Missing);
+                Total_CompositionMissing += entry.CompositionMissing;
+            }
             CreateOutputString(entry);
         }
         IonicCompositionTotals.Composition = Total_Composition;
+        IonicCompositionTotals.CompositionMissing = Total_CompositionMissing;
         IonicCompositionTotals.Counts = Total_Counts;
         IonicCompositionTotals.Net = Total_Net;
         IonicCompositionTotals.Bgd = Total_Bgd;
         IonicCompositionTotals.Tail = Total_Tail;
+        IonicCompositionTotals.Missing = Total_Missing;
     }
 
     private void DetermineNewRanges(List<RangesTableEntries> MinSortedRangesTable, List<Vector3> peaks)

@@ -55,6 +55,7 @@ namespace CustomMassRanging
         public int[,] multiIonTrueCounts = null!;              //multiIonTrueCounts[range][0=correlated, 1=uncorrelated]
                                                                //non-double counted multi-ions
         public int[] missingCounts = null!;
+        public int[] missingSigma2 = null!;
         public string[] missingPairs = null!;
         public class MultiStuff
         {
@@ -173,6 +174,9 @@ namespace CustomMassRanging
                 rangeMins[j] = (float)range.Min;
                 rangeMaxs[j] = (float)range.Max;
             }
+
+            //Unused, but maybe update and add later...
+            /*
             int getRangeNumberFromName(string rangeName)
             {
                 for (int i=0; i<N; i++)
@@ -185,6 +189,7 @@ namespace CustomMassRanging
                     if (pos >= rangeMins[i] && pos <= rangeMaxs[i]) return i;
                 return -1; //not found
             }
+            */
         }
 
         private void FillMultisArrays(IIonData ionData)
@@ -1201,6 +1206,7 @@ namespace CustomMassRanging
              *      Note: When one has already been calulated, do not allow it to change     
              */
             missingCounts = new int[N];
+            missingSigma2 = new int[N];
             missingPairs = new string[N];
             bool[] done = new bool[N];
             for (int i = 0; i < N; i++)
@@ -1343,14 +1349,28 @@ namespace CustomMassRanging
             double f = 2.0 * Math.Sqrt((double)(M_AA * M_BB)) / (double)M_AB;
             double N_C = (double)M_AB / (2d * A * B);
 
+            //overflow issues
+            double dI = (double)I;
+            double dJ = (double)J;
+            double sigmaAA2 = (dI*dI+dJ*dJ)/(dI*dJ*(dI+dJ)) + 1d/(double)M_AB;
+
             //Assume 1 of missing doubles has been detected, so M/2
             int mcAA = (int)(M / 2.0 * (N_C * A * A - (double)(M_AA + missingCounts[i])));
             int mcBB = (int)(M / 2.0 * (N_C * B * B - (double)(M_BB + missingCounts[j])));
 
-            if (mcAA >= 0 && mcBB >= 0) //should we allow negative corrections for iterations?
+            missingCounts[i] += mcAA;
+            missingSigma2[i] += (int)(sigmaAA2 * (double)(mcAA * mcAA));
+
+            /*
+            if (mcAA >= 0 && mcBB >= 0)
+            {
+                //should we allow negative corrections for iterations?
                 //missingCounts[i] = mcAA;
                 // changed to add missing counts so this can be iterated to convergence
                 missingCounts[i] += mcAA;
+                missingSigma2[i] += (int)(sigmaAA2*(double)(mcAA*mcAA));
+            }
+            */
         }
     }
 }

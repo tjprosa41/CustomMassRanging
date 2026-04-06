@@ -91,6 +91,9 @@
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
 
@@ -102,7 +105,7 @@
                                 VerticalScrollBarVisibility="Visible"
                                 Grid.Row="0"
                                 Grid.Column="0"
-                                Grid.ColumnSpan="8"
+                                Grid.ColumnSpan="11"
                                 Width="Auto"
                                 AutoGenerateColumns="False"
                                 Background="White"
@@ -169,6 +172,7 @@
                                         <DataGridTextColumn.HeaderStyle>
                                             <Style TargetType="{x:Type DataGridColumnHeader}">
                                                 <Setter Property="HorizontalContentAlignment" Value="Right"/>
+                                                <Setter Property="ToolTip" Value="Counts = Ranged Counts&#x0d;&#x0a;Background = Ranged Bgd&#x0d;&#x0a;Net = Cts - Bgd + Tail&#x0d;&#x0a;Tail = Estimated Net Tai&#x0d;&#x0a;Missing = Deadtime Est." />
                                             </Style>
                                         </DataGridTextColumn.HeaderStyle>
                                     </DataGridTextColumn>
@@ -176,6 +180,7 @@
                                         <DataGridTextColumn.HeaderStyle>
                                             <Style TargetType="{x:Type DataGridColumnHeader}">
                                                 <Setter Property="HorizontalContentAlignment" Value="Right"/>
+                                                <Setter Property="ToolTip" Value="Counts = Ranged Counts&#x0d;&#x0a;Background = Ranged Bgd&#x0d;&#x0a;Net = Cts - Bgd + Tail&#x0d;&#x0a;Tail = Estimated Net Tai&#x0d;&#x0a;Missing = Deadtime Est." />
                                             </Style>
                                         </DataGridTextColumn.HeaderStyle>
                                     </DataGridTextColumn>
@@ -183,6 +188,7 @@
                                         <DataGridTextColumn.HeaderStyle>
                                             <Style TargetType="{x:Type DataGridColumnHeader}">
                                                 <Setter Property="HorizontalContentAlignment" Value="Right"/>
+                                                <Setter Property="ToolTip" Value="Counts = Ranged Counts&#x0d;&#x0a;Background = Ranged Bgd&#x0d;&#x0a;Net = Cts - Bgd + Tail&#x0d;&#x0a;Tail = Estimated Net Tai&#x0d;&#x0a;Missing = Deadtime Est." />
                                             </Style>
                                         </DataGridTextColumn.HeaderStyle>
                                     </DataGridTextColumn>
@@ -190,7 +196,30 @@
                                         <DataGridTextColumn.HeaderStyle>
                                             <Style TargetType="{x:Type DataGridColumnHeader}">
                                                 <Setter Property="HorizontalContentAlignment" Value="Right" />
-                                                <Setter Property="ToolTip" Value="Counts = Ranged Counts&#x0d;&#x0a;Background = Ranged Bgd&#x0d;&#x0a;Net = Cts - Bgd + Tail&#x0d;&#x0a;Tail = Estimated Net Tail" />
+                                                <Setter Property="ToolTip" Value="Counts = Ranged Counts&#x0d;&#x0a;Background = Ranged Bgd&#x0d;&#x0a;Net = Cts - Bgd + Tail&#x0d;&#x0a;Tail = Estimated Net Tail&#x0d;&#x0a;Missing = Deadtime Est." />
+                                            </Style>
+                                        </DataGridTextColumn.HeaderStyle>
+                                    </DataGridTextColumn>
+                                    <DataGridTextColumn IsReadOnly="True" Width="*" Header="Missing"            Binding="{Binding Missing, StringFormat=N0, Mode=OneWay}" ElementStyle="{StaticResource NumericTextBlock}">
+                                        <DataGridTextColumn.HeaderStyle>
+                                            <Style TargetType="{x:Type DataGridColumnHeader}">
+                                                <Setter Property="HorizontalContentAlignment" Value="Right" />
+                                                <Setter Property="ToolTip" Value="Counts = Ranged Counts&#x0d;&#x0a;Background = Ranged Bgd&#x0d;&#x0a;Net = Cts - Bgd + Tail&#x0d;&#x0a;Tail = Estimated Net Tai&#x0d;&#x0a;Missing = Deadtime Est." />
+                                            </Style>
+                                        </DataGridTextColumn.HeaderStyle>
+                                    </DataGridTextColumn>
+                                    <DataGridTextColumn IsReadOnly="True" Width="*" Header="Cor. Comp."    Binding="{Binding CompositionMissingString, Mode=OneWay}" ElementStyle="{StaticResource StringCenter}">
+                                        <DataGridTextColumn.HeaderStyle>
+                                            <Style TargetType="{x:Type DataGridColumnHeader}">
+                                                <Setter Property="HorizontalContentAlignment" Value="Center"/>
+                                            </Style>
+                                        </DataGridTextColumn.HeaderStyle>
+                                    </DataGridTextColumn>
+                                    <DataGridTextColumn IsReadOnly="True" Width="*" Header="Sigma/DT (95% CL)"  Binding="{Binding SigmaMissingString, Mode=OneWay}" ElementStyle="{StaticResource StringCenter}">
+                                        <DataGridTextColumn.HeaderStyle>
+                                            <Style TargetType="{x:Type DataGridColumnHeader}">
+                                                <Setter Property="ToolTip" Value="Composition Uncertainty or 95% Confidence Level Detection Threshold when Not Detected (ND, but would detect >95% of the time when concentration exceeds this value.)." />
+                                                <Setter Property="HorizontalContentAlignment" Value="Center"/>
                                             </Style>
                                         </DataGridTextColumn.HeaderStyle>
                                     </DataGridTextColumn>
@@ -205,7 +234,10 @@
                             <TextBlock Grid.Row="1" Grid.Column="4" HorizontalAlignment="Right" VerticalAlignment="Top" Text="{Binding Path=IonicCompositionTotals.Bgd, StringFormat=N0, Mode=OneWay}" />
                             <TextBlock Grid.Row="1" Grid.Column="5" HorizontalAlignment="Right" VerticalAlignment="Top" Text="{Binding Path=IonicCompositionTotals.Net, StringFormat=N0, Mode=OneWay}" />
                             <TextBlock Grid.Row="1" Grid.Column="6" HorizontalAlignment="Right" VerticalAlignment="Top" Text="{Binding Path=IonicCompositionTotals.Tail, StringFormat=N0, Mode=OneWay}" />
-                            <TextBlock Grid.Row="1" Grid.Column="7" HorizontalAlignment="Right" VerticalAlignment="Top" Text="" Width="20" />
+                            <TextBlock Grid.Row="1" Grid.Column="7" HorizontalAlignment="Right" VerticalAlignment="Top" Text="{Binding Path=IonicCompositionTotals.Missing, StringFormat=N0, Mode=OneWay}" />
+                            <TextBlock Grid.Row="1" Grid.Column="8" HorizontalAlignment="Center" VerticalAlignment="Top" Text="{Binding IonicCompositionTotals.CompositionMissing, StringFormat=P1, Mode=OneWay}" />
+                            <TextBlock Grid.Row="1" Grid.Column="9" HorizontalAlignment="Center" VerticalAlignment="Top" >NA</TextBlock>
+                            <TextBlock Grid.Row="1" Grid.Column="10" HorizontalAlignment="Right" VerticalAlignment="Top" Text="" Width="20" />
                         </Grid>
                     </TabItem>
 
@@ -226,6 +258,9 @@
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
 
@@ -238,7 +273,7 @@
                                 VerticalScrollBarVisibility="Visible"
                                 Grid.Row="0"
                                 Grid.Column="0"
-                                Grid.ColumnSpan="8"
+                                Grid.ColumnSpan="11"
                                 Width="Auto"
                                 AutoGenerateColumns="False"
                                 Background="White"
@@ -304,6 +339,7 @@
                                         <DataGridTextColumn.HeaderStyle>
                                             <Style TargetType="{x:Type DataGridColumnHeader}">
                                                 <Setter Property="HorizontalContentAlignment" Value="Right"/>
+                                                <Setter Property="ToolTip" Value="Counts = Ranged Counts&#x0d;&#x0a;Background = Ranged Bgd&#x0d;&#x0a;Net = Cts - Bgd + Tail&#x0d;&#x0a;Tail = Estimated Net Tai&#x0d;&#x0a;Missing = Deadtime Est." />
                                             </Style>
                                         </DataGridTextColumn.HeaderStyle>
                                     </DataGridTextColumn>
@@ -311,6 +347,7 @@
                                         <DataGridTextColumn.HeaderStyle>
                                             <Style TargetType="{x:Type DataGridColumnHeader}">
                                                 <Setter Property="HorizontalContentAlignment" Value="Right"/>
+                                                <Setter Property="ToolTip" Value="Counts = Ranged Counts&#x0d;&#x0a;Background = Ranged Bgd&#x0d;&#x0a;Net = Cts - Bgd + Tail&#x0d;&#x0a;Tail = Estimated Net Tai&#x0d;&#x0a;Missing = Deadtime Est." />
                                             </Style>
                                         </DataGridTextColumn.HeaderStyle>
                                     </DataGridTextColumn>
@@ -318,6 +355,7 @@
                                         <DataGridTextColumn.HeaderStyle>
                                             <Style TargetType="{x:Type DataGridColumnHeader}">
                                                 <Setter Property="HorizontalContentAlignment" Value="Right"/>
+                                                <Setter Property="ToolTip" Value="Counts = Ranged Counts&#x0d;&#x0a;Background = Ranged Bgd&#x0d;&#x0a;Net = Cts - Bgd + Tail&#x0d;&#x0a;Tail = Estimated Net Tai&#x0d;&#x0a;Missing = Deadtime Est." />
                                             </Style>
                                         </DataGridTextColumn.HeaderStyle>
                                     </DataGridTextColumn>
@@ -325,7 +363,30 @@
                                         <DataGridTextColumn.HeaderStyle>
                                             <Style TargetType="{x:Type DataGridColumnHeader}">
                                                 <Setter Property="HorizontalContentAlignment" Value="Right" />
-                                                <Setter Property="ToolTip" Value="Counts = Ranged Counts&#x0d;&#x0a;Background = Ranged Bgd&#x0d;&#x0a;Net = Cts - Bgd + Tail&#x0d;&#x0a;Tail = Estimated Net Tail" />
+                                                <Setter Property="ToolTip" Value="Counts = Ranged Counts&#x0d;&#x0a;Background = Ranged Bgd&#x0d;&#x0a;Net = Cts - Bgd + Tail&#x0d;&#x0a;Tail = Estimated Net Tai&#x0d;&#x0a;Missing = Deadtime Est." />
+                                            </Style>
+                                        </DataGridTextColumn.HeaderStyle>
+                                    </DataGridTextColumn>
+                                    <DataGridTextColumn IsReadOnly="True" Width="*" Header="Missing"            Binding="{Binding Missing, StringFormat=N0, Mode=OneWay}" ElementStyle="{StaticResource NumericTextBlock}">
+                                        <DataGridTextColumn.HeaderStyle>
+                                            <Style TargetType="{x:Type DataGridColumnHeader}">
+                                                <Setter Property="HorizontalContentAlignment" Value="Right" />
+                                                <Setter Property="ToolTip" Value="Counts = Ranged Counts&#x0d;&#x0a;Background = Ranged Bgd&#x0d;&#x0a;Net = Cts - Bgd + Tail&#x0d;&#x0a;Tail = Estimated Net Tai&#x0d;&#x0a;Missing = Deadtime Est." />
+                                            </Style>
+                                        </DataGridTextColumn.HeaderStyle>
+                                    </DataGridTextColumn>
+                                    <DataGridTextColumn IsReadOnly="True" Width="*" Header="Cor. Comp."    Binding="{Binding CompositionMissingString, Mode=OneWay}" ElementStyle="{StaticResource StringCenter}">
+                                        <DataGridTextColumn.HeaderStyle>
+                                            <Style TargetType="{x:Type DataGridColumnHeader}">
+                                                <Setter Property="HorizontalContentAlignment" Value="Center"/>
+                                            </Style>
+                                        </DataGridTextColumn.HeaderStyle>
+                                    </DataGridTextColumn>
+                                    <DataGridTextColumn IsReadOnly="True" Width="*" Header="Sigma/DT (95% CL)"  Binding="{Binding SigmaMissingString, Mode=OneWay}" ElementStyle="{StaticResource StringCenter}">
+                                        <DataGridTextColumn.HeaderStyle>
+                                            <Style TargetType="{x:Type DataGridColumnHeader}">
+                                                <Setter Property="ToolTip" Value="Composition Uncertainty or 95% Confidence Level Detection Threshold when Not Detected (ND, but would detect >95% of the time when concentration exceeds this value.)." />
+                                                <Setter Property="HorizontalContentAlignment" Value="Center"/>
                                             </Style>
                                         </DataGridTextColumn.HeaderStyle>
                                     </DataGridTextColumn>
@@ -340,7 +401,10 @@
                             <TextBlock Grid.Row="1" Grid.Column="4" HorizontalAlignment="Right" VerticalAlignment="Top" Text="{Binding Path=DecomposedCompositionTotals.Bgd, StringFormat=N0}" />
                             <TextBlock Grid.Row="1" Grid.Column="5" HorizontalAlignment="Right" VerticalAlignment="Top" Text="{Binding Path=DecomposedCompositionTotals.Net,  StringFormat=N0}" />
                             <TextBlock Grid.Row="1" Grid.Column="6" HorizontalAlignment="Right" VerticalAlignment="Top" Text="{Binding Path=DecomposedCompositionTotals.Tail, StringFormat=N0}" />
-                            <TextBlock Grid.Row="1" Grid.Column="7" HorizontalAlignment="Right" VerticalAlignment="Top" Text="" Width="20" />
+                            <TextBlock Grid.Row="1" Grid.Column="7" HorizontalAlignment="Right" VerticalAlignment="Top" Text="{Binding Path=DecomposedCompositionTotals.Missing, StringFormat=N0}" />
+                            <TextBlock Grid.Row="1" Grid.Column="8" HorizontalAlignment="Center" VerticalAlignment="Top" Text="{Binding Path=DecomposedCompositionTotals.CompositionMissing, StringFormat=P1}" />
+                            <TextBlock Grid.Row="1" Grid.Column="9" HorizontalAlignment="Center" VerticalAlignment="Top" >NA</TextBlock>
+                            <TextBlock Grid.Row="1" Grid.Column="10" HorizontalAlignment="Right" VerticalAlignment="Top" Text="" Width="20" />
                         </Grid>
 
 

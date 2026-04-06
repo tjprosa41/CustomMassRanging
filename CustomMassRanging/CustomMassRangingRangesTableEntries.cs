@@ -55,6 +55,11 @@ namespace CustomMassRanging
         {
         }
 
+        public void UpdateMissing(double missing, double missingsigma2)
+        {
+            Missing = missing;
+            MissingSigma2 = missingsigma2;
+        }
         private void CalculateBgdLineCoordinates(RangeScheme? scheme, double leftBgd, double rightBgd, double leftDelta)
         {
             //This is the width of the range, so background width / 2
