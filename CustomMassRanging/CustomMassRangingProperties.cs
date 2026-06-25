@@ -145,10 +145,21 @@ public partial class CustomMassRangingProperties : ObservableObject
     public double dSeparationCriteria = 8d;
 
     [ObservableProperty]
+    [field: Display(Name = "P[i] Use", GroupName = "Multi-Hit Parameters",
+        Description = "Ranges to use for P[i] missing calculations.\n")]
+    public EMultiPiCalc eMultiPiCalcUse = EMultiPiCalc.All;
+
+    [ObservableProperty]
     [field: Display(Name = "Use Detector Separations", GroupName = "Multi-Hit Parameters",
         Description = "Ion separation distances based on detector units or reconstructed\n" +
                       "units (mm or nm).")]
+
     public bool bUseDetectorSeparations = false;
+
+    [ObservableProperty]
+    [field: Display(Name = "Use Manual Ranging", GroupName = "Multi-Hit Parameters",
+            Description = "Use existing ranging start of extension.")]
+    public bool bUseManualRanging = false;
 
     [ObservableProperty]
     [field: Display(Name = "Pseudo-Multi Max dp", GroupName = "Multi-Hit Parameters",
@@ -167,7 +178,7 @@ public partial class CustomMassRangingProperties : ObservableObject
 
     [ObservableProperty]
     [field: Display(Name = "Sep Plots Include", GroupName = "Multi-Hit Parameters",
-    Description = "Types of ions to be used in separation plot histograms.\n")]
+        Description = "Types of ions to be used in separation plot histograms.\n")]
     public EIons eSepPlots = EIons.Selected;
 
     public List<RangeList> RangesList = new();
@@ -205,6 +216,8 @@ public partial class CustomMassRangingProperties : ObservableObject
         SKeyRange = parameters.SKeyRange;
         DSeparationCriteria = parameters.DSeparationCriteria;
         BUseDetectorSeparations = parameters.BUseDetectorSeparations;
+        BUseManualRanging = parameters.BUseManualRanging;
+        EMultiPiCalcUse = parameters.EMultiPiCalcUse;
         IPseudoMultiMaxdp = parameters.IPseudoMultiMaxdp;
         ESepPlotScaling = parameters.ESepPlotScaling;
         EPlotsList = parameters.EPlotsList;
@@ -245,6 +258,8 @@ public partial class CustomMassRangingProperties : ObservableObject
         copy.SKeyRange = SKeyRange;
         copy.DSensitivity = DSensitivity;
         copy.BUseDetectorSeparations = BUseDetectorSeparations;
+        copy.BUseManualRanging = BUseManualRanging;
+        copy.EMultiPiCalcUse = EMultiPiCalcUse;
         copy.IPseudoMultiMaxdp = IPseudoMultiMaxdp;
         copy.ESepPlotScaling = ESepPlotScaling;
         copy.EPlotsList = EPlotsList;

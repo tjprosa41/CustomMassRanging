@@ -453,7 +453,11 @@
                                     <LineBreak/>
                                     <Run FontSize ="12" Text="{Binding Path=MultisInformation.Uncorrelatedpseudomultistable, Mode=OneWay}" /><Bold>Summary:</Bold>
                                     <LineBreak/>
-                                    <Run FontSize ="12" Text="{Binding Path=MultisInformation.Summary, Mode=OneWay}" />
+                                    <Run FontSize ="12" Text="{Binding Path=MultisInformation.Summary, Mode=OneWay}" /><Bold>Nc Convergence Plot:</Bold>
+                                    <LineBreak/>
+                                    <Run FontSize ="12" Text="{Binding Path=MultisInformation.Ncplot, Mode=OneWay}" /><Bold>Si Isotope Evaluation:</Bold>
+                                    <LineBreak/>
+                                    <Run FontSize ="12" Text="{Binding Path=MultisInformation.SiIsotope, Mode=OneWay}" />
                                 </Paragraph>
                             </FlowDocument>
                         </RichTextBox>
@@ -463,6 +467,7 @@
                     <TabItem Header="Separation Plots" Opacity="1" Name="SepHistogram">
                         <controls:Chart2D x:Name="SepHistogramChart2D"
                             IsLegendVisible="True"
+                            IsManipulationEnabled ="True"
                             DataSource="{Binding SepHistogramData}"
                             AxisXLabel="Separation (nm or mm)"
                             AxisYLabel="Pairs"
@@ -577,6 +582,7 @@
                             </Style>
                         </DataGridComboBoxColumn.HeaderStyle>
                      </DataGridComboBoxColumn>
+                    <DataGridTextColumn IsReadOnly="True" Width="*" Header="Bgd" Binding="{Binding Bgd, StringFormat=N0, Mode=OneWay}" ElementStyle="{StaticResource NumericTextBlock}" />
                     <DataGridTextColumn IsReadOnly="True" Width="*" Header="Tail Counts" Binding="{Binding Tail, StringFormat=N0, Mode=OneWay}" ElementStyle="{StaticResource NumericTextBlock}" />
                 </DataGrid.Columns>
                 

@@ -1,12 +1,18 @@
 ﻿using Cameca.CustomAnalysis.Interface;
 using Cameca.CustomAnalysis.Utilities;
+using Polly.Caching;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Drawing;
 using System.Linq;
 using System.Numerics;
+using System.Reflection.Metadata.Ecma335;
+using System.Runtime.Intrinsics.X86;
+using System.Transactions;
+using System.Windows.Controls.Ribbon;
 using System.Windows.Documents;
+using System.Xml;
 
 namespace CustomMassRanging
 {
@@ -21,7 +27,7 @@ namespace CustomMassRanging
         public const int HREGMax = 5;
         public const int NDistBins = 1000;
         public const int DPBins = 1000;
-        public const float DistRes = 0.2f; //1000*0.2 = 200 nm or mm
+        public float DistRes = 0.20f; //1000*0.2 = 200 nm or mm
 
         bool lastLastWasSingle = false;
         MultiStuff lastLastSingleMultiStuff = null!;
@@ -43,6 +49,7 @@ namespace CustomMassRanging
         public string[] rangeNames = null!;         //Names to be use for table headers
         public float[] rangeMins = null!;           //Saved range mins and maxs
         public float[] rangeMaxs = null!;
+        public int[] rangeBgd = null!;              
         public int[,] hreg = null!;                 //Similar to root hreg, so multi-1. [multi 1, 2, 3, etc][0=all ranged only, 1=all]
         public string[] hregNames = { "singles", "doubles", "triples", "quads", "quints", "sexts", "septs", "octs", "nanos", "decs" };
         public int[] dpHistogram = null!;
@@ -53,10 +60,18 @@ namespace CustomMassRanging
         public int[,,,] dpDistanceCorrelations = null!;     //distanceCorrelations[range1][dp][type 0=all, 1=non-same-same, 2=same-same][NDISTBINS]
                                                             //also consider if all ranged or all selected or all ions period
         public int[,] multiIonTrueCounts = null!;              //multiIonTrueCounts[range][0=correlated, 1=uncorrelated]
-                                                               //non-double counted multi-ions
+                                                               //non-double-counted multi-ions
+        public double[] P = null!; //COR fraction or probability
         public int[] missingCounts = null!;
+        public int[] previousMissingCounts = null!;
+        public int[,] NcMatrix = null!;      
         public int[] missingSigma2 = null!;
         public string[] missingPairs = null!;
+        public int[] Nc = null!;
+        public double NcSigma2 = 0d;
+        public int NcWeightedAve = 0;
+        public int iterations = 0;
+        public double[] iterationChi2 = null!;
         public class MultiStuff
         {
             public int range;
@@ -65,6 +80,7 @@ namespace CustomMassRanging
         }
 
         public EIons useSepPlots = EIons.Selected;
+        public EMultiPiCalc multiPiCalcUse = EMultiPiCalc.All;
 
         //Initialize
         public MultiHits(IIonData ionData, Vector2[]? values, ObservableCollection<RangesTableEntries> useRanges, ObservableCollection<RangesTableEntries> allRanges, Parameters Parameters)
@@ -72,7 +88,9 @@ namespace CustomMassRanging
             if (values == null || useRanges == null || allRanges == null)
                 return;
 
+            if (Parameters.BUseDetectorSeparations) DistRes = 0.080f; //0.08*1000 = 80 mm separations
             useSepPlots = Parameters.ESepPlots;
+            multiPiCalcUse = Parameters.EMultiPiCalcUse;
 
             N = useRanges.Count;
             NTotal = allRanges.Count;
@@ -101,6 +119,7 @@ namespace CustomMassRanging
             rangeNames[N + 2] = "Total";
             rangeMins = new float[N];
             rangeMaxs = new float[N];
+            rangeBgd = new int[N];
             /*
             j = 0;
             foreach (var range in useRanges)
@@ -173,6 +192,7 @@ namespace CustomMassRanging
                 rangeNames[j] = $"{(10.0d * range.Pos / 3.0d) * 3f / 10f:N1}-{range.Name}";
                 rangeMins[j] = (float)range.Min;
                 rangeMaxs[j] = (float)range.Max;
+                rangeBgd[j] = (int)(range.Bgd + 0.5d);
             }
 
             //Unused, but maybe update and add later...
@@ -340,7 +360,8 @@ namespace CustomMassRanging
             stdevVolt = (float)(Math.Sqrt((totVoltSq / (double)totKeyRangeCount - (double)aveVolt * (double)aveVolt)));
             aveDR = (float)((double)totIonCounts[N + 2] / (pulseLast - pulseFirst)); //Based on all counts...do we want that or more toward uncorrelated events?
 
-            fillMissing();
+            fillMissingNcMatrix();
+            fillMissing(); //This is pair-wise, single correction
         }
 
         private MultiStuff GetMultiStuff(float pulse, short pulseDelta, float mass, Vector3 coordinate)
@@ -715,7 +736,7 @@ namespace CustomMassRanging
             cor = false;
             double separation = Math.Sqrt(Math.Pow(p2.X - p1.X, 2) + Math.Pow(p2.Y - p1.Y, 2) + Math.Pow(p2.Z - p1.Z, 2));
             if (separation <= critSep) cor = true;
-            return (int)(separation / DistRes);
+            return (int)(separation / (double)DistRes + 0.5d);
         }
 
         public void MultisSummaryString(Parameters Parameters, MyViewableString MultisInformation)
@@ -742,20 +763,24 @@ namespace CustomMassRanging
 
             string SimpleDescriptors = "";
             {
-                SimpleDescriptors += $"{"Oana PME (event probability):",52}";
-                SimpleDescriptors += $"{(double)(eventPulses - singles[N + 2]) / (double)eventPulses,13:P2}\n";
-                SimpleDescriptors += $"{"All PME (ion origin event probability, ~2xOana PME):",52}";
-                SimpleDescriptors += $"{(double)(multiIonTrueCounts[N + 2, 0] + multiIonTrueCounts[N + 2, 1]) / (double)totIonCounts[N + 2],13:P2}\n";
-                SimpleDescriptors += $"{"All PCME (ion origin event probability):",52}";
-                SimpleDescriptors += $"{(double)multiIonTrueCounts[N + 2, 0] / (double)totIonCounts[N + 2],13:P2}\n";
-                SimpleDescriptors += $"{"All PCME Cor.(ion origin event probability):",52}";
-                int missingCountsTotal = 0;
-                for (int i = 0; i < N; i++) missingCountsTotal += missingCounts[i];
-                SimpleDescriptors += $"{(double)(multiIonTrueCounts[N + 2, 0] + missingCountsTotal) / (double)(totIonCounts[N + 2] + missingCountsTotal),13:P2}\n";
-                SimpleDescriptors += $"{"Deadtime:",52}";
-                SimpleDescriptors += $"{(double)missingCountsTotal / (double)(totIonCounts[N + 2]+missingCountsTotal),13:P2}\n";
-                SimpleDescriptors += $"{"Cor. Same-Same Detected:",52}";
-                SimpleDescriptors += $"{(double)(dpCorMultis[N + 2, N + 2, 0]) / (double)(dpCorMultis[N + 2,N + 2,0] + missingCountsTotal),13:P2}\n";
+                SimpleDescriptors += $"{"PME (event probability):",52}";
+                SimpleDescriptors += $"{(double)(eventPulses - singles[N + 2]) / (double)eventPulses,13:P2}";
+                SimpleDescriptors += "  Multi-Event Pulses / Total Event Pulses\n";
+                SimpleDescriptors += $"{"Ion from PME (ion origin event probability):",52}";
+                SimpleDescriptors += $"{(double)(multiIonTrueCounts[N + 2, 0] + multiIonTrueCounts[N + 2, 1]) / (double)totIonCounts[N + 2],13:P2}";
+                SimpleDescriptors += "  Multi-Event Ions / Total Ions\n";
+                SimpleDescriptors += $"{"PCME (ion origin event probability):",52}";
+                SimpleDescriptors += $"{(double)multiIonTrueCounts[N + 2, 0] / (double)totIonCounts[N + 2],13:P2}";
+                SimpleDescriptors += "  Correlated Multi-Event Ions / Total Ions\n";
+                SimpleDescriptors += $"{"PCME Cor.(deadtime corrected PCME):",52}";
+                SimpleDescriptors += $"{(double)(multiIonTrueCounts[N + 2, 0] + missingCounts[N]) / (double)(totIonCounts[N + 2] + missingCounts[N]),13:P2}";
+                SimpleDescriptors += "  Deadtime Corrected PCME\n";
+                SimpleDescriptors += $"{"Deadtime Est.:",52}";
+                SimpleDescriptors += $"{(double)missingCounts[N] / (double)(totIonCounts[N + 2] + missingCounts[N]),13:P2}";
+                SimpleDescriptors += "  Missing Ions / (Total Ions + Missing Ions)\n";
+                SimpleDescriptors += $"{"Cor. Same-Same Eff.:",52}";
+                SimpleDescriptors += $"{(double)(dpCorMultis[N + 2, N + 2, 0]) / (double)(dpCorMultis[N + 2,N + 2,0] + missingCounts[N]),13:P2}";
+                SimpleDescriptors += "  Correlated Same-Same Events / (Correlated Same-Same Events + Missing Ions)\n";
                 SimpleDescriptors += $"\n";
             }
             MultisInformation.Simple = SimpleDescriptors;
@@ -770,19 +795,33 @@ namespace CustomMassRanging
 
                 PCMETable += $"{"PCME:",15}";
                 for (int i = 0; i < N + 3; i++)
-                    PCMETable += $"{(double)multiIonTrueCounts[i, 0] / (double)(totIonCounts[i]),13:P1}";
+                {
+                    if (totIonCounts[i]>0)
+                        PCMETable += $"{(double)multiIonTrueCounts[i, 0] / (double)(totIonCounts[i]),13:P1}";
+                    else
+                        PCMETable += $"{"NA",13}";
+                }
                 PCMETable += $"\n";
 
                 PCMETable += $"{"PCME Corrected:",15}";
                 for (int i = 0; i < N; i++)
-                    PCMETable += $"{(double)(multiIonTrueCounts[i, 0] + missingCounts[i]) / (double)(totIonCounts[i] + missingCounts[i]),13:P1}";
+                    if (totIonCounts[i] + missingCounts[i] > 0)
+                        PCMETable += $"{(double)(multiIonTrueCounts[i, 0] + missingCounts[i]) / (double)(totIonCounts[i] + missingCounts[i]),13:P1}";
+                    else
+                        PCMETable += $"{"NA",13}";
                 for (int i = N; i < N + 3; i++)
-                    PCMETable += $"{(double)multiIonTrueCounts[i, 0] / (double)(totIonCounts[i]),13:P1}";
+                    if (totIonCounts[i] > 0)
+                        PCMETable += $"{(double)multiIonTrueCounts[i, 0] / (double)(totIonCounts[i]),13:P1}";
+                    else
+                        PCMETable += $"{"NA",13}";                
                 PCMETable += $"\n";
 
-                PCMETable += $"{"Deadtime:",15}";
+                PCMETable += $"{"Missing:",15}";
                 for (int i = 0; i < N; i++)
-                    PCMETable += $"{(double)missingCounts[i] / (double)(missingCounts[i] + totIonCounts[i]),13:P1}";
+                    if (missingCounts[i] + totIonCounts[i] > 0)
+                        PCMETable += $"{(double)missingCounts[i] / (double)(missingCounts[i] + totIonCounts[i]),13:P1}";
+                    else
+                        PCMETable += $"{"NA",13}";
                 PCMETable += $"\n";
 
                 PCMETable += $"{"Pair:",15}";
@@ -865,10 +904,68 @@ namespace CustomMassRanging
                 
                 CorrelatedTable += $"{"SS Det. Eff.:",13}";
                 for (int i = 0; i < N; i++)
-                    CorrelatedTable += $"{(double)dpCorMultis[i, i, 0] / (double)(dpCorMultis[i, i, 0]+missingCounts[i]),13:P2}";
+                {
+                    int tot = dpCorMultis[i, i, 0] + missingCounts[i];
+                    if (tot == 0)
+                        CorrelatedTable += $"{"NA",13}";
+                    else
+                        CorrelatedTable += $"{(double)dpCorMultis[i, i, 0] / (double)(dpCorMultis[i, i, 0] + missingCounts[i]),13:P2}";
+                }
                 CorrelatedTable += "\n";
 
                 CorrelatedTable += "\n";
+            }
+
+            CorrelatedTable += $"Missing Matrix NCs\n";
+            CorrelatedTable += $"Nc from All Mijs: {Nc[iterations - 1],13:N0}  Iterations: {iterations,13:N0}\n{"",13}";
+            {
+                //N-->N+2
+                for (int i = 0; i < N+2; i++)
+                    CorrelatedTable += $"{rangeNames[i],13}";
+                CorrelatedTable += "\n";
+                
+                string TrueN = $"{"COR+2Missing:",13}";
+                string Fracs = $"{"P[i]:",13}";
+                //N-->N+2
+                for (int i = 0; i < N+2; i++)
+                {
+                    if (i < N)
+                    {
+                        double Na = (double)(multiIonTrueCounts[i, 0] + previousMissingCounts[i] + previousMissingCounts[i]);
+                        TrueN += $"{Na,13:N0}";
+                        Fracs += $"{P[i],13:N4}";
+                    }
+                    else
+                    {
+                        double Na = (double)(multiIonTrueCounts[i, 0]);
+                        TrueN += $"{Na,13:N0}";
+                        Fracs += $"{P[i],13:N4}";
+                    }
+                    CorrelatedTable += $"{rangeNames[i],13}";
+                    //N-->N+2
+                    for (int j = 0; j < N+2; j++)
+                            CorrelatedTable += $"{NcMatrix[i, j],13:N0}";
+                    CorrelatedTable += "\n";
+                }
+                CorrelatedTable += " ------------------------------------------\n";
+                CorrelatedTable += TrueN + "\n";
+                CorrelatedTable += Fracs + "\n";
+                
+                CorrelatedTable += $"{"Missing:",13}";
+                for (int i = 0; i < N; i++)
+                    CorrelatedTable += $"{missingCounts[i],13:N0}";
+                CorrelatedTable += "\n";
+                
+                CorrelatedTable += $"{"Sigma:",13}";
+                for (int i = 0; i < N; i++)
+                    CorrelatedTable += $"{Math.Sqrt((double)missingSigma2[i]),13:N0}";
+                CorrelatedTable += "\n";
+
+                CorrelatedTable += $"{"Pair:",13}";
+                for (int i = 0; i < N; i++)
+                    CorrelatedTable += $"{missingPairs[i],13}";
+
+                CorrelatedTable += "\n\n";
             }
             MultisInformation.Correlatedmultistable = CorrelatedTable;
 
@@ -948,7 +1045,7 @@ namespace CustomMassRanging
                     CorrelatedFixedStdevTable += "\n";
                 }
             }
-            MultisInformation.CorrelatedmultistableStdevs = CorrelatedFixedNormalizedTable;
+            MultisInformation.CorrelatedmultistableStdevs = CorrelatedFixedStdevTable;
 
             string UncorrelatedTable = $"All Multi-Hit Pairs: dpMultis[First Ion,Second Ion,dp=0]\n{"",13}";
             {
@@ -1110,18 +1207,334 @@ namespace CustomMassRanging
             }
             MultisInformation.Summary = Summary;
 
-            MultisInformation.Value = "Overview:\n" + MultisInformation.Overview + 
-                "\n\nSimple Descriptors:\n" + MultisInformation.Simple + 
-                "\n\nPCME Table:\n" + MultisInformation.Infobyiontype + 
-                "\n\nCorrelated Multis Table:\n" + MultisInformation.Correlatedmultistable + 
-                "\n\nCorrelated Multis Table Normalized:\n" + MultisInformation.CorrelatedmultistableNormalized + 
-                "\n\nCorrelated Multis Table Stdevs:\n" + MultisInformation.CorrelatedmultistableStdevs + 
-                "\n\nUncorrelated Multis Table:\n" + MultisInformation.Uncorrelatedmultistable + 
-                "\n\nCorrelated Pseudo-Multis Table:\n" + MultisInformation.Correlatedpseudomultistable + 
-                "\n\nUncorrelated Pseudo-Multis Table:\n" + MultisInformation.Uncorrelatedpseudomultistable + 
-                "\n\nSummary:\n" + MultisInformation.Summary;
-        }
+            string Ncplot = $"{"Iteration",13}{"Nc",13}{"Chi2",13}\n";
+            {
+                for (int i = 0; i<iterations; i++)
+                    Ncplot += $"{i + 1,13:N0}{Nc[i],13:N0}{iterationChi2[i],13:N0}\n";
+                Ncplot += "\n";
+            }
+            MultisInformation.Ncplot = Ncplot;
 
+            MultisInformation.SiIsotope = getSiIsotopeString();
+
+            MultisInformation.Value = "Overview:\n" + MultisInformation.Overview +
+                "\n\nSimple Descriptors:\n" + MultisInformation.Simple +
+                "\n\nPCME Table:\n" + MultisInformation.Infobyiontype +
+                "\n\nCorrelated Multis Table:\n" + MultisInformation.Correlatedmultistable +
+                "\n\nCorrelated Multis Table Normalized:\n" + MultisInformation.CorrelatedmultistableNormalized +
+                "\n\nCorrelated Multis Table Stdevs:\n" + MultisInformation.CorrelatedmultistableStdevs +
+                "\n\nUncorrelated Multis Table:\n" + MultisInformation.Uncorrelatedmultistable +
+                "\n\nCorrelated Pseudo-Multis Table:\n" + MultisInformation.Correlatedpseudomultistable +
+                "\n\nUncorrelated Pseudo-Multis Table:\n" + MultisInformation.Uncorrelatedpseudomultistable +
+                "\n\nSummary:\n" + MultisInformation.Summary +
+                "\n\nNc Convergence:\n" + MultisInformation.Ncplot +
+                "\n\nSi Isotope Fractions:" + MultisInformation.SiIsotope;
+        }
+        public string getSiIsotopeString()
+        {
+            string s = "";
+            bool yesSipp = false;
+            bool yesSip = false;
+            int[] Sipp = new int[] { -1, -1, -1 };
+            int[] SippBgd = new int[] { -1, -1, -1 };
+            int[] Sip = new int[] { -1, -1, -1 };
+            int[] SipBgd = new int[] { -1, -1, -1 };
+            for (int i = 0; i < rangeNames.Length; i++)
+            {
+                if (rangeNames[i].Equals("14.0-Si"))
+                    Sipp[0] = i;
+                else if (rangeNames[i].Equals("14.5-Si"))
+                    Sipp[1] = i;
+                else if (rangeNames[i].Equals("15.0-Si"))
+                    Sipp[2] = i;
+                else if (rangeNames[i].Equals("28.0-Si"))
+                    Sip[0] = i;
+                else if (rangeNames[i].Equals("29.0-Si"))
+                    Sip[1] = i;
+                else if (rangeNames[i].Equals("30.0-Si"))
+                    Sip[2] = i;
+            }
+
+            if (Sipp[0] >= 0 && Sipp[1] >= 0 && Sipp[2] >=0)
+                yesSipp = true;
+            if (Sip[0] >= 0 && Sip[1] >= 0 && Sip[2] >= 0)
+                yesSip = true;
+            
+            if (!yesSip && !yesSipp)
+                return s;
+
+            s += $"{"",20}";
+            if (yesSipp)
+                for (int i = 0; i < 3; i++)
+                    s += $"{rangeNames[Sipp[i]],13}";
+            if (yesSip)
+             for (int i = 0; i < 3; i++)
+                   s += $"{rangeNames[Sip[i]],13}";
+            s += "\n";
+
+            s += $"{"Uncorr. Cts.:",20}";
+            if (yesSipp)
+                for (int i = 0; i < 3; i++)
+                    s += $"{multiIonTrueCounts[Sipp[i], 1],13:N0}";
+            if (yesSip)
+                for (int i = 0; i < 3; i++)
+                    s += $"{multiIonTrueCounts[Sip[i], 1],13:N0}";
+            s += $"\n";
+
+            s += $"{"Missing (by pairs):",20}";
+            if (yesSipp)
+                for (int i = 0; i < 3; i++)
+                    s += $"{missingCounts[Sipp[i]],13:N0}";
+            if (yesSip)
+                for (int i = 0; i < 3; i++)
+                    s += $"{missingCounts[Sip[i]],13:N0}";
+            s += $"\n";
+
+            s += $"{"Missing (by 3s):",20}";
+            double[] AA = new double[3] { -1, -1, -1 };
+            if (yesSipp)
+            {
+                if (dpCorMultis[Sipp[1], Sipp[2], 0] + dpCorMultis[Sipp[2], Sipp[1], 0] > 0)
+                    AA[0] = 0.5d * (double)(dpCorMultis[Sipp[0], Sipp[1], 0] + dpCorMultis[Sipp[1], Sipp[0], 0])
+                    * (double)(dpCorMultis[Sipp[0], Sipp[2], 0] + dpCorMultis[Sipp[2], Sipp[0], 0])
+                    / (double)(dpCorMultis[Sipp[1], Sipp[2], 0] + dpCorMultis[Sipp[2], Sipp[1], 0]);
+                else
+                    AA[0] = 0;
+                if (dpCorMultis[Sipp[0], Sipp[2], 0] + dpCorMultis[Sipp[2], Sipp[0], 0] > 0)
+                    AA[1] = 0.5d * (double)(dpCorMultis[Sipp[0], Sipp[1], 0] + dpCorMultis[Sipp[1], Sipp[0], 0])
+                        * (double)(dpCorMultis[Sipp[1], Sipp[2], 0] + dpCorMultis[Sipp[2], Sipp[1], 0])
+                        / (double)(dpCorMultis[Sipp[0], Sipp[2], 0] + dpCorMultis[Sipp[2], Sipp[0], 0]);
+                else
+                    AA[1] = 0;
+                if (dpCorMultis[Sipp[0], Sipp[1], 0] + dpCorMultis[Sipp[1], Sipp[0], 0] > 0)
+                    AA[2] = 0.5d * (double)(dpCorMultis[Sipp[2], Sipp[1], 0] + dpCorMultis[Sipp[1], Sipp[2], 0])
+                        * (double)(dpCorMultis[Sipp[0], Sipp[2], 0] + dpCorMultis[Sipp[2], Sipp[0], 0])
+                        / (double)(dpCorMultis[Sipp[0], Sipp[1], 0] + dpCorMultis[Sipp[1], Sipp[0], 0]);
+                else
+                    AA[2] = 0;
+            }
+
+            double[] A = new double[3] { -1, -1, -1 };
+            if (yesSip)
+            {
+                if (dpCorMultis[Sip[1], Sip[2], 0] + dpCorMultis[Sip[2], Sip[1], 0] > 0)
+                    A[0] = 0.5d * (double)(dpCorMultis[Sip[0], Sip[1], 0] + dpCorMultis[Sip[1], Sip[0], 0])
+                        * (double)(dpCorMultis[Sip[0], Sip[2], 0] + dpCorMultis[Sip[2], Sip[0], 0])
+                        / (double)(dpCorMultis[Sip[1], Sip[2], 0] + dpCorMultis[Sip[2], Sip[1], 0]);
+                else
+                    A[0] = 0;
+                if (dpCorMultis[Sip[0], Sip[2], 0] + dpCorMultis[Sip[2], Sip[0], 0] > 0)
+                    A[1] = 0.5d * (double)(dpCorMultis[Sip[0], Sip[1], 0] + dpCorMultis[Sip[1], Sip[0], 0])
+                        * (double)(dpCorMultis[Sip[1], Sip[2], 0] + dpCorMultis[Sip[2], Sip[1], 0])
+                        / (double)(dpCorMultis[Sip[0], Sip[2], 0] + dpCorMultis[Sip[2], Sip[0], 0]);
+                else
+                    A[1] = 0;
+                if (dpCorMultis[Sip[0], Sip[1], 0] + dpCorMultis[Sip[1], Sip[0], 0] > 0)
+                    A[2] = 0.5d * (double)(dpCorMultis[Sip[2], Sip[1], 0] + dpCorMultis[Sip[1], Sip[2], 0])
+                        * (double)(dpCorMultis[Sip[0], Sip[2], 0] + dpCorMultis[Sip[2], Sip[0], 0])
+                        / (double)(dpCorMultis[Sip[0], Sip[1], 0] + dpCorMultis[Sip[1], Sip[0], 0]);
+                else
+                    A[2] = 0;
+                if (dpCorMultis[Sip[0], Sip[1], 0] + dpCorMultis[Sip[1], Sip[0], 0] > 0)
+                    A[2] = 0.5d * (double)(dpCorMultis[Sip[2], Sip[1], 0] + dpCorMultis[Sip[1], Sip[2], 0])
+                        * (double)(dpCorMultis[Sip[0], Sip[2], 0] + dpCorMultis[Sip[2], Sip[0], 0])
+                        / (double)(dpCorMultis[Sip[0], Sip[1], 0] + dpCorMultis[Sip[1], Sip[0], 0]);
+                else
+                    A[2] = 0;
+            }
+
+            if (yesSipp)
+                for (int i = 0; i < 3; i++)
+                    s += $"{(int)(AA[i] + 0.5d) - dpCorMultis[Sipp[i], Sipp[i],0],13:N0}";
+            if (yesSip)
+                for (int i = 0; i < 3; i++)
+                    s += $"{(int)(A[i] + 0.5d) - dpCorMultis[Sip[i], Sip[i], 0],13:N0}";
+            s += $"\n";
+
+            s += $"{"COR Cts.:",20}";
+            if (yesSipp)
+                for (int i = 0; i < 3; i++)
+                    s += $"{multiIonTrueCounts[Sipp[i], 0],13:N0}";
+            if (yesSip)
+                for (int i = 0; i < 3; i++)
+                    s += $"{multiIonTrueCounts[Sip[i], 0],13:N0}";
+            s += $"\n";
+
+            s += $"{"All Cts.:",20}";
+            if (yesSipp)
+                for (int i = 0; i < 3; i++)
+                    s += $"{totIonCounts[Sipp[i]],13:N0}";
+            if (yesSip)
+                for (int i = 0; i < 3; i++)
+                    s += $"{totIonCounts[Sip[i]],13:N0}";
+            s += $"\n";
+
+            s += $"{"All Bgd Cts.:",20}";
+            if (yesSipp)
+                for (int i = 0; i < 3; i++)
+                    s += $"{rangeBgd[Sipp[i]],13:N0}";
+            if (yesSip)
+                for (int i = 0; i < 3; i++)
+                    s += $"{rangeBgd[Sip[i]],13:N0}";
+            s += $"\n";
+
+            s += $"{"Uncor Frac.:",20}";
+            if (yesSipp)
+            {
+                int total = 0;
+                for (int i = 0; i < 3; i++)
+                    total += multiIonTrueCounts[Sipp[i], 1];
+                for (int i = 0; i < 3; i++)
+                    s += $"{(double)multiIonTrueCounts[Sipp[i], 1]/(double)total,13:P2}";
+            }
+            if (yesSip)
+            {
+                int total = 0;
+                for (int i = 0; i < 3; i++)
+                    total += multiIonTrueCounts[Sip[i], 1];
+                for (int i = 0; i < 3; i++)
+                    s += $"{(double)multiIonTrueCounts[Sip[i], 1] / (double)total,13:P2}";
+            }
+            s += $"\n";
+
+            s += $"{"COR Raw Frac.:",20}";
+            if (yesSipp)
+            {
+                int total = 0;
+                for (int i = 0; i < 3; i++)
+                    total += multiIonTrueCounts[Sipp[i], 0];
+                for (int i = 0; i < 3; i++)
+                    s += $"{(double)multiIonTrueCounts[Sipp[i], 0] / (double)total,13:P2}";
+            }
+            if (yesSip)
+            {
+                int total = 0;
+                for (int i = 0; i < 3; i++)
+                    total += multiIonTrueCounts[Sip[i], 0];
+                for (int i = 0; i < 3; i++)
+                    s += $"{(double)multiIonTrueCounts[Sip[i], 0] / (double)total,13:P2}";
+            }
+            s += $"\n";
+
+            s += $"{"COR Frac. Pairs:",20}";
+            if (yesSipp)
+            {
+                int total = 0;
+                for (int i = 0; i < 3; i++)
+                    total += multiIonTrueCounts[Sipp[i], 0] + 2 * missingCounts[Sipp[i]];
+                for (int i = 0; i < 3; i++)
+                    s += $"{(double)(multiIonTrueCounts[Sipp[i], 0] + 2 * missingCounts[Sipp[i]]) / (double)total,13:P2}";
+            }
+            if (yesSip)
+            {
+                int total = 0;
+                for (int i = 0; i < 3; i++)
+                    total += multiIonTrueCounts[Sip[i], 0] + 2 * missingCounts[Sip[i]];
+                for (int i = 0; i < 3; i++)
+                    s += $"{(double)(multiIonTrueCounts[Sip[i], 0] + 2 * missingCounts[Sip[i]]) / (double)total,13:P2}";
+            }
+            s += $"\n";
+
+            s += $"{"All Frac. Pairs:",20}";
+            if (yesSipp)
+            {
+                int total = 0;
+                for (int i = 0; i < 3; i++)
+                    total += totIonCounts[Sipp[i]] + missingCounts[Sipp[i]] - rangeBgd[Sipp[i]];
+                for (int i = 0; i < 3; i++)
+                    s += $"{(double)(totIonCounts[Sipp[i]] + missingCounts[Sipp[i]] - rangeBgd[Sipp[i]]) / (double)total,13:P2}";
+            }
+            if (yesSip)
+            {
+                int total = 0;
+                for (int i = 0; i < 3; i++)
+                    total += totIonCounts[Sip[i]] + missingCounts[Sip[i]] - rangeBgd[Sip[i]];
+                for (int i = 0; i < 3; i++)
+                    s += $"{(double)(totIonCounts[Sip[i]] + missingCounts[Sip[i]] - rangeBgd[Sip[i]]) / (double)total,13:P2}";
+            }
+            s += $"\n";
+
+            s += $"{"COR Frac. 3s:",20}";
+            if (yesSipp)
+            {
+                int total = 0;
+                for (int i = 0; i < 3; i++)
+                    total += multiIonTrueCounts[Sipp[i], 0] + 2 * (int)(AA[i] + 0.5d);
+                for (int i = 0; i < 3; i++)
+                    s += $"{(double)(multiIonTrueCounts[Sipp[i], 0] + 2 * (int)(AA[i] + 0.5d)) / (double)total,13:P2}";
+            }
+            if (yesSip)
+            {
+                int total = 0;
+                for (int i = 0; i < 3; i++)
+                    total += multiIonTrueCounts[Sip[i], 0] + 2 * (int)(A[i] + 0.5d);
+                for (int i = 0; i < 3; i++)
+                    s += $"{(double)(multiIonTrueCounts[Sip[i], 0] + 2 * (int)(A[i] + 0.5d)) / (double)total,13:P2}";
+            }
+            s += $"\n";
+
+            s += $"{"All Frac. 3s:",20}";
+            if (yesSipp)
+            {
+                int total = 0;
+                for (int i = 0; i < 3; i++)
+                    total += totIonCounts[Sipp[i]] + (int)(AA[i] + 0.5d) - rangeBgd[Sipp[i]];
+                for (int i = 0; i < 3; i++)
+                    s += $"{(double)(totIonCounts[Sipp[i]] + (int)(AA[i] + 0.5d) - rangeBgd[Sipp[i]]) / (double)total,13:P2}";
+            }
+            if (yesSip)
+            {
+                int total = 0;
+                for (int i = 0; i < 3; i++)
+                    total += totIonCounts[Sip[i]] + (int)(A[i] + 0.5d) - rangeBgd[Sip[i]];
+                for (int i = 0; i < 3; i++)
+                    s += $"{(double)(totIonCounts[Sip[i]] + (int)(A[i] + 0.5d) - rangeBgd[Sip[i]]) / (double)total,13:P2}";
+            }
+            s += $"\n";
+
+            s += $"{"All Frac. 3s Sigma:",20}";
+            if (yesSipp)
+            {
+                int totalN = 0;
+                int totalBgd = 0;
+                for (int i = 0; i < 3; i++)
+                {
+                    totalN += totIonCounts[Sipp[i]] + (int)(AA[i] + 0.5d);
+                    totalBgd += rangeBgd[Sipp[i]];
+                }
+                for (int i = 0; i < 3; i++)
+                {
+                    double sigma = Math.Sqrt( (double)(totIonCounts[Sipp[i]] + (int)(AA[i] + 0.5d) + rangeBgd[Sipp[i]]) //(NC+BC)
+                                     * Math.Pow((double)(totalN - totIonCounts[Sipp[i]] - (int)(AA[i] + 0.5d) - totalBgd + rangeBgd[Sipp[i]]), 2d)//(NC'-BC')^2
+                                     + (double)(totalN - totIonCounts[Sipp[i]] - (int)(AA[i] + 0.5d) + totalBgd - rangeBgd[Sipp[i]])//(NC'+BC')
+                                     * Math.Pow((double)(totIonCounts[Sipp[i]] + (int)(AA[i] + 0.5d) - rangeBgd[Sipp[i]]), 2d) )//(NC-BC)^2 
+                                     / Math.Pow((double)(totalN - totalBgd), 2d);//(N-B)^2
+                    s += $"{sigma,13:P2}";
+                }
+            }
+            if (yesSip)
+            {
+                int totalN = 0;
+                int totalBgd = 0;
+                for (int i = 0; i < 3; i++)
+                {
+                    totalN += totIonCounts[Sip[i]] + (int)(A[i] + 0.5d);
+                    totalBgd += rangeBgd[Sip[i]];
+                }
+                for (int i = 0; i < 3; i++)
+                {
+                    double sigma = Math.Sqrt( (double)(totIonCounts[Sip[i]] + (int)(A[i] + 0.5d) + rangeBgd[Sip[i]]) //(NC+BC)
+                                             * Math.Pow((double)(totalN - totIonCounts[Sip[i]] - (int)(A[i] + 0.5d) - totalBgd + rangeBgd[Sip[i]]), 2d)//(NC'-BC')^2
+                                             + (double)(totalN - totIonCounts[Sip[i]] - (int)(A[i] + 0.5d) + totalBgd - rangeBgd[Sip[i]])//(NC'+BC')
+                                             * Math.Pow((double)(totIonCounts[Sip[i]] + (int)(A[i] + 0.5d) - rangeBgd[Sip[i]]), 2d) )//(NC-BC)^2 
+                                             / Math.Pow((double)(totalN - totalBgd), 2d) ;//(N-B)^2
+                    s += $"{sigma,13:P2}";
+                }
+            }
+            s += $"\n\n";
+
+            return s;
+        }
         public int getConsideredTotal(int[,,] array, int dp)
         {
             int other = array[N, N + 2, dp] + array[N + 2, N, dp] - array[N, N, dp];
@@ -1196,30 +1609,411 @@ namespace CustomMassRanging
             }
             return;
         }
-
-        public void fillMissing()
+        
+        public void fillMissingNcMatrix()
         {
-            /* Do pair-wise deadtime correction
-             *      Same element/molecule - same charge state
-             *      Same element/molecule - different charge states
-             *      Highest statistics
-             *      Note: When one has already been calulated, do not allow it to change     
+            /* Homogeneous:
+             *        P[i] - the fraction of COR events for the ith range (including ranged, unranged and other correlated events)
+             *             - this value also includes the missing counts for the range, so it is updated each iteration
+             *        multiIonTrueCounts[,0] - overcounting corrected true number of correlated counts detected, 0=correlated, 1=uncorrelated
+             *                           - includes ranged, unranged and other correlated events
+             *        missingCounts[] - the number of missing counts
+             *                        - for each Mii missing, it one missing count for composition because the other was detected as a single, uncorrelated
+             *                        - for correlated compositions, P[i], then we need to add in 2x because of the missing COR pair
+             *        previousMissingCounts - so that we can display the Missing Matrix computations
+             *        NcMatrix[,] - the number of pairs implied by each Mij, which is the number of pairs expected for the current P[i] and P[j]
+             *        Nc - the number of correlated pairs implied by considering all Mijs
              */
-            missingCounts = new int[N];
+
+            /* Heterogeneous:
+             *      Do pair-wise deadtime correction
+             *      Can have different ion pairs used for each ion (A might use AB, but B might be from BC)
+             *      
+             *      Hierarchy:
+             *        Same element/molecule - same charge state
+             *        Same element/molecule - different charge states
+             *        Highest statistics  
+             */
+
+            //Now other and unranged, but other*other and unranged*unraged same-same can be ignored
+            P = new double[N + 2]; // Do other and unranged too
+            missingCounts = new int[N + 2]; //Only N will have missing, still totals, added based on TotalTrueCORCounts
+            previousMissingCounts = new int[N + 2]; //Only N will have missing, still totals, added based on TotalTrueCORCounts
+            NcMatrix = new int[N+2, N+2]; //Matrix will be N+2xN+2, no totals
             missingSigma2 = new int[N];
             missingPairs = new string[N];
-            bool[] done = new bool[N];
+
+            //Initialize
             for (int i = 0; i < N; i++)
-                missingCounts[i] = 0;
-
-            for (int iterations = 0; iterations < 10; iterations++)
             {
-                for (int i = 0; i < N; i++)
-                    done[i] = false;
+                missingCounts[i] = 0; //This is the total of all missingCounts (expected - detected)
+                missingPairs[i] = "All";
+            }
+            missingCounts[N] = 0; //Total from 0 to N-1
+            int TotalTrueCORCounts = useMultiIonTrueCounts();
+            missingCounts[N + 1] = TotalTrueCORCounts;
 
-                while (true)
+
+            //Minimization 1: Determine Pis to get Nc, iterate until Missing doesn't change
+            Nc = new int[50];
+            iterationChi2 = new double[50];
+            //Save 50 for second minimization
+            for (iterations = 0; iterations < 49; iterations++)
+            {
+                //Modifies Pis
+                DeterminePisFromMissingAndTrueCORCounts();
+
+                //Modifies NcMatrix[,], Nc[iteration], iterationChi2[iteration], NcSigma2, NcWeightedAve
+                DetermineNcMatrixAndNcFromPisAndMultis(iterations);
+
+                if (iterations > 0 && iterationChi2[iterations] > iterationChi2[iterations - 1])
                 {
-                    //Go in order of most counts - ignoring missing corrections
+                    CopyPreviousMissingCountsIntoMissingCounts();
+                    DeterminePisFromMissingAndTrueCORCounts();
+                    DetermineNcMatrixAndNcFromPisAndMultis(iterations-1);
+                    DetermineMissingCountsFromNcSumMijAndPis(Nc[iterations-1], NcSigma2);
+                    break;
+                }
+                //Modifies previousMissingCounts[]
+                CopyMissingCountsIntoPrevious();
+
+                //Modifies missingCounts[]
+                //Only a single missing count for each missing COR pair (because the other was detected as a single, uncorrelated)
+                DetermineMissingCountsFromNcSumMijAndPis(Nc[iterations], NcSigma2);
+
+                //Convergence test
+                if (missingCounts[N] == previousMissingCounts[N])
+                {
+                    //Converged, so fine, no change
+                    iterations++;
+                    break;
+                }
+            }
+
+            //Minimization 2: Have converged Pi that yields an unchanging Nc (Nc determined by a weighted average)
+            //Now a grid search of Nc to minimize Chi2 -- fit to all the non-same-same matrix elements
+
+            //Calc new Pis for previous Nc and missing
+            //Determine missing counts
+            //Check Chi2
+            //Repeat
+            int nc = Nc[iterations - 1];
+            int delta = nc / 20;
+            bool first = true;
+            bool last = false;
+            bool quit = false;
+            double chi2 = 0d;
+            int lastMissingCounts = 0;
+            while (lastMissingCounts != missingCounts[N])
+            {
+                lastMissingCounts = missingCounts[N];
+                DeterminePisFromMissingAndTrueCORCounts();
+                DetermineMissingCountsFromNcSumMijAndPis(nc, nc);
+            }
+            double minChi2 = Chi2(nc);
+            while (!last && !quit)
+            {
+                if (delta > -1 && delta < 1)
+                {
+                    delta = 1;
+                    last = true;
+                }
+
+                nc += delta;
+                lastMissingCounts = 0;
+                while (lastMissingCounts != missingCounts[N])
+                {
+                    lastMissingCounts = missingCounts[N];
+                    DeterminePisFromMissingAndTrueCORCounts();
+                    DetermineMissingCountsFromNcSumMijAndPis(nc, nc);
+                }
+
+                //Chi2 depends on Pis and nc (and Mijs which are fixed)
+                chi2 = Chi2(nc);
+                if (chi2 < minChi2)
+                {
+                    first = false;
+                    minChi2 = chi2;
+                }
+                else
+                {
+                    if (first)
+                    {
+                        //Try negative direction
+                        first = false;
+                        delta = -delta;
+                        nc += delta;
+                    }
+                    else //min found last iteration
+                    {
+                        nc -= delta;
+                        delta /= 20;
+                        first = true;
+                        if (last) quit = true;
+                    }
+                }
+            }
+            lastMissingCounts = 0;
+            while (lastMissingCounts != missingCounts[N])
+            {
+                lastMissingCounts = missingCounts[N];
+                DeterminePisFromMissingAndTrueCORCounts();
+                DetermineMissingCountsFromNcSumMijAndPis(nc, nc);
+            }
+            Nc[iterations] = nc;
+            iterationChi2[iterations] = minChi2;
+            iterations++;
+        }
+        int useMultiIonTrueCounts()
+        {
+            if (multiPiCalcUse == EMultiPiCalc.All)
+                return multiIonTrueCounts[N + 2, 0] + missingCounts[N] + missingCounts[N];
+            else if (multiPiCalcUse == EMultiPiCalc.NotOther)
+                return multiIonTrueCounts[N + 2, 0] - multiIonTrueCounts[N, 0] + missingCounts[N] + missingCounts[N];
+            else if (multiPiCalcUse == EMultiPiCalc.NotUnranged)
+                return multiIonTrueCounts[N + 2, 0] - multiIonTrueCounts[N + 1, 0] + missingCounts[N] + missingCounts[N];
+            else //(multiPiCalcUse == EMultiPiCalc.NotEither)
+                return multiIonTrueCounts[N + 2, 0] - multiIonTrueCounts[N, 0] - multiIonTrueCounts[N + 1, 0] + missingCounts[N] + missingCounts[N];
+        }
+        public void DeterminePisFromMissingAndTrueCORCounts()
+        {
+            //Determine Pis: Total = all TrueCounts + 2 COR counts for each missing count - other - unranged
+            //missingCounts are based on previous iteration
+            //missingCounts[N+1] is the total number true counts plus missing counts from previous iteration
+            for (int i = 0; i < N + 2; i++)
+            {
+                if (i < N)
+                    P[i] = (double)(multiIonTrueCounts[i, 0] + missingCounts[i] + missingCounts[i]) / (double)missingCounts[N + 1];
+                else if (i == N)
+                {
+                    if (multiPiCalcUse == EMultiPiCalc.All || multiPiCalcUse == EMultiPiCalc.NotUnranged)
+                        P[i] = (double)(multiIonTrueCounts[i, 0]) / (double)missingCounts[N + 1];
+                    else
+                        P[i] = 0d;
+                }
+                else //(i == N+1)
+                {
+                    if (multiPiCalcUse == EMultiPiCalc.All || multiPiCalcUse == EMultiPiCalc.NotOther)
+                        P[i] = (double)(multiIonTrueCounts[i, 0]) / (double)missingCounts[N + 1];
+                    else
+                        P[i] = 0d;
+                }
+            }
+        }
+        public void CopyMissingCountsIntoPrevious()
+        {
+            for (int i = 0; i < N; i++)
+                    previousMissingCounts[i] = missingCounts[i];
+            previousMissingCounts[N] = missingCounts[N];
+            previousMissingCounts[N + 1] = missingCounts[N + 1];
+        }
+        public void CopyPreviousMissingCountsIntoMissingCounts()
+        {
+            for (int i = 0; i < N; i++)
+                missingCounts[i] = previousMissingCounts[i];
+            missingCounts[N] = previousMissingCounts[N];
+            missingCounts[N + 1] = previousMissingCounts[N + 1];
+        }
+        public void DetermineNcMatrixAndNcFromPisAndMultis(int iteration)
+        { 
+            //Modifies NcMatrix, Nc[iteration], iterationChi2[iteration], NcSigma2, NcWeightedAve
+            
+            //Determine Nc Matrix
+            double SumMij = 0d;
+            double SumSigmaMij2 = 0d;
+            double SumPi2 = 0d;
+            double NcWeightedAveNumerator = 0d;
+            double NcWeightedAveDenominator = 0d;
+            for (int i = 0; i < N + 2; i++)
+            {
+                if (P[i] > 0d)
+                {
+                    for (int j = i + 1; j < N + 2; j++)
+                    {
+                        if (P[j] > 0)
+                        {
+                            double Mij = (double)(dpCorMultis[i, j, 0] + dpCorMultis[j, i, 0]);
+                            SumMij += Mij;
+                            SumSigmaMij2 += 1.0d / Mij;
+                            NcMatrix[i, j] = (int)(Mij / (2.0d * P[i] * P[j]) + 0.5d);
+                            NcMatrix[j, i] = NcMatrix[i, j];
+
+                            double Termij = 1.0d / Mij + (P[i] + P[j] - P[i] * P[i] - P[j] * P[j]) / (double)missingCounts[N + 1];
+                            NcWeightedAveNumerator += Math.Sqrt((double)NcMatrix[i, j]);
+                            NcWeightedAveDenominator += 1.0d / Math.Sqrt((double)NcMatrix[i, j]);
+                        }
+                    }
+                    SumPi2 += P[i] * P[i];
+                    NcMatrix[i, i] = (int)((double)(dpCorMultis[i, i, 0]) / (P[i] * P[i]) + 0.5d);
+                }
+            }
+            //Determine Nc from Mijs
+            Nc[iteration] = (int)(SumMij / (1.0d - SumPi2) + 0.5d);
+            iterationChi2[iteration] = Chi2(Nc[iteration]);
+
+            double SumPi5 = 0.0d;
+            for (int i = 0; i < N; i++)
+                SumPi5 += Math.Pow(P[i], 5d) * (1d - P[i]);
+            SumPi5 = 2d * SumPi5 / (double)missingCounts[N + 1];
+            NcSigma2 = (double)Nc[iteration] * (double)Nc[iteration] * (1d / SumMij + SumPi5 / (1d - SumPi2));
+            NcWeightedAve = (int)(NcWeightedAveNumerator / NcWeightedAveDenominator + 0.5d);
+        }
+        public void DetermineMissingCountsFromNcSumMijAndPis(int nc, double ncsigma2)
+        {
+            //Determine missingCounts: only a single missing count for each missing COR pair (because the other was detected as a single, uncorrelated)
+            int TotalMissingCounts = 0;
+            for (int i = 0; i < N; i++)
+            {
+                double temp = (double)nc * P[i] * P[i];
+                double tempsigma2 = (ncsigma2 / (double)nc / (double)nc + 2d * P[i] * (1d - P[i]) / (double)missingCounts[N + 1] / P[i] / P[i]);
+                tempsigma2 *= temp * temp;
+                missingCounts[i] = (int)((double)temp + 0.5d) - dpCorMultis[i, i, 0];
+                missingSigma2[i] = (int)(tempsigma2 + 0.5d) + dpCorMultis[i, i, 0];
+                TotalMissingCounts += missingCounts[i];
+            }
+            missingCounts[N] = TotalMissingCounts;
+            int TotalTrueCORCounts = useMultiIonTrueCounts();
+            missingCounts[N + 1] = TotalTrueCORCounts;
+            //missingCounts[N+1] = multiIonTrueCounts[N + 2, 0] + missingCounts[N] + missingCounts[N];
+        }
+        public double Chi2(int nc)
+        {
+            double chi2 = 0d;
+            for (int i = 0; i < N+2; i++)
+            {
+                for (int j = i + 1; j < N+2; j++)
+                {
+                    double Mij = (double)(dpCorMultis[i, j, 0] + dpCorMultis[j, i, 0]);
+                    double expectedMij = 2.0d * P[i] * P[j] * (double)nc;
+                    if (Mij > 0)
+                        chi2 += (Mij - expectedMij) * (Mij - expectedMij) / Mij;
+                    else
+                        chi2 += expectedMij;
+                }
+            }
+            return chi2;
+        }
+        public void fillMissing()
+        {
+            // Do pair-wise deadtime correction
+            //      Same element/molecule - same charge state
+            //      Same element/molecule - different charge states
+            //      Highest statistics (highest correction?)
+            //      Note: When one has already been calulated, do not allow it to change     
+            //
+
+            /*
+            //Now other and unranged, but other*other and unranged*unraged same-same can be ignored
+            P = new double[N + 2]; // Do other and unranged too
+            missingCounts = new int[N + 2]; //Only N will have missing, still totals, added based on TotalTrueCORCounts
+            previousMissingCounts = new int[N + 2]; //Only N will have missing, still totals, added based on TotalTrueCORCounts
+            NcMatrix = new int[N + 2, N + 2]; //Matrix will be N+2xN+2, no totals
+            missingSigma2 = new int[N];
+            missingPairs = new string[N];
+            */
+
+            //Initialize
+            for (int i = 0; i < N; i++)
+            {
+                missingCounts[i] = 0; //This is the total of all missingCounts (expected - detected)
+                missingPairs[i] = "";
+            }
+            missingCounts[N] = 0;
+            int TotalTrueCORCounts = useMultiIonTrueCounts();
+            missingCounts[N + 1] = TotalTrueCORCounts;
+
+            for (int iterations = 0; iterations < 100; iterations++)
+            {
+                CopyMissingCountsIntoPrevious();
+                DeterminePisFromMissingAndTrueCORCounts();
+                missingCounts[N] = 0;
+                for (int i = 0; i < N; i++)
+                {
+                    List<int> matches1 = new();
+                    List<int> matches2 = new();
+                    for (int j = 0; j < N; j++)
+                    {
+                        if (i != j)
+                        {
+                            if (sameElement(rangeNames[j], rangeNames[i]) && sameChargeState(rangeNames[j], rangeNames[i]))
+                                matches1.Add(j);
+                            else if (sameElement(rangeNames[j], rangeNames[i]))
+                                matches2.Add(j);
+                        }
+                    }
+                    //What about too small statistics?
+
+                    //Same element, same charge state, at least 1000 NcMatrix cts
+                    int max = 999;
+                    int match = -1;
+                    if (matches1.Count > 0)
+                    {
+                        foreach (int j in matches1)
+                        {
+                            if (NcMatrix[i, j] > max)
+                            {
+                                max = NcMatrix[i, j];
+                                match = j;
+                            }
+                        }
+                        if (match >= 0)
+                        {
+                            determineMissingCountsUsingCorCountsOnly(i, match);
+                            missingPairs[i] = rangeNames[match];
+                            continue;
+                        }
+                    }
+                    //Same element
+                    if (matches2.Count > 0)
+                    {
+                        foreach (int j in matches2)
+                        {
+                            if (NcMatrix[i, j] > max)
+                            {
+                                max = NcMatrix[i, j];
+                                match = j;
+                            }
+                        }
+                        if (match >= 0)
+                        {
+                            determineMissingCountsUsingCorCountsOnly(i, match);
+                            missingPairs[i] = rangeNames[match];
+                            continue;
+                        }
+                    }
+                    //No matches, use max
+                    for (int j = 0; j < N; j++)
+                    {
+                        if (i != j)
+                        {
+                            if (NcMatrix[i, j] > max)
+                            {
+                                max = NcMatrix[i, j];
+                                match = j;
+                            }
+                        }
+                    }
+                    if (match >= 0)
+                    {
+                        determineMissingCountsUsingCorCountsOnly(i, match);
+                        missingPairs[i] = rangeNames[match];
+                        continue;
+                    }
+                    missingCounts[i] = 0;
+                    missingSigma2[i] = 0;
+                    missingPairs[i] = "None";
+                }
+                // If any of the missingCounts is negative, then quit iterations (previous is then used anyway?)
+                for (int i = 0; i < N; i++)
+                {
+                    if (missingCounts[i] < 0)
+                    {
+                        return;
+                    }
+                }
+            }
+            /*
+                    //Go in order of most counts - ignoring missing corrections - obsolete, but I'll keep
                     int max = 0;
                     int maxItem = -1;
                     int maxItem2 = -1;
@@ -1233,6 +2027,7 @@ namespace CustomMassRanging
                     }
                     // -1 only when everything is done
                     if (maxItem == -1) break;
+                    
                     //Most counts left determined - find matches
                     List<int> matches = new();
                     //Try for same element same charge state
@@ -1289,13 +2084,14 @@ namespace CustomMassRanging
                         }
                     }
                     //maxItem to be corrected, maxItem2 left alone
-                    determineMissingCounts(maxItem, maxItem2);
+                    determineMissingCountsUsingCorCountsOnly(maxItem, maxItem2);
                     missingPairs[maxItem] = rangeNames[maxItem2];
                     done[maxItem] = true;
                 }
             }
+            */
         }
-
+        
         public bool sameChargeState(string rangeName1, string rangeName2)
         {
             // Same charge state -- >5.5/1.33 and <5.5*1.33
@@ -1310,7 +2106,6 @@ namespace CustomMassRanging
             if (dpos2 > (dpos1 / 1.33d) && dpos2 < (1.33d * dpos1)) return true;
             return false;
         }
-
         public bool sameElement(string rangeName1, string rangeName2)
         {
             // 5.5-Si
@@ -1322,55 +2117,38 @@ namespace CustomMassRanging
             if (first.Equals(second)) return true;
             return false;
         }
-
-        public void determineMissingCounts(int i, int j)
+        public void determineMissingCountsUsingCorCountsOnly(int i, int j)
         {
-            // This is called to fix any AB correlation with sufficient counts
-            // M assumes some overcounting -- not implimented
-            // Adjust ith only, jth may or may not have been adjusted already
-
-            //double M = double(tot_doubles_ions - 2 * tot_doubles_unc) / double(tot_doubles_cor);
-            double M = 2.0; //Use if not breaking higher multis overcounting doubles
-
-            //int I = totIonCounts[i];
-            // changed I to include missing counts so this can be iterated to convergence
-            int I = totIonCounts[i] + missingCounts[i];
-            int J = totIonCounts[j] + missingCounts[j];
-
-            //Total counts
-            int Total_Counts = I + J;
-
-            double A = (double)I / (double)Total_Counts;
-            double B = 1d - A;
+            int I = multiIonTrueCounts[i, 0] + previousMissingCounts[i] + previousMissingCounts[i];
+            int J = multiIonTrueCounts[j, 0] + previousMissingCounts[j] + previousMissingCounts[j];
 
             int M_AA = dpCorMultis[i, i, 0];
             int M_AB = dpCorMultis[i, j, 0] + dpCorMultis[j, i, 0];
             int M_BB = dpCorMultis[j, j, 0];
-            double f = 2.0 * Math.Sqrt((double)(M_AA * M_BB)) / (double)M_AB;
-            double N_C = (double)M_AB / (2d * A * B);
-
-            //overflow issues
-            double dI = (double)I;
-            double dJ = (double)J;
-            double sigmaAA2 = (dI*dI+dJ*dJ)/(dI*dJ*(dI+dJ)) + 1d/(double)M_AB;
-
-            //Assume 1 of missing doubles has been detected, so M/2
-            int mcAA = (int)(M / 2.0 * (N_C * A * A - (double)(M_AA + missingCounts[i])));
-            int mcBB = (int)(M / 2.0 * (N_C * B * B - (double)(M_BB + missingCounts[j])));
-
-            missingCounts[i] += mcAA;
-            missingSigma2[i] += (int)(sigmaAA2 * (double)(mcAA * mcAA));
-
-            /*
-            if (mcAA >= 0 && mcBB >= 0)
+            if (M_AB >= 100) //else insufficient signal to use
             {
-                //should we allow negative corrections for iterations?
-                //missingCounts[i] = mcAA;
-                // changed to add missing counts so this can be iterated to convergence
-                missingCounts[i] += mcAA;
-                missingSigma2[i] += (int)(sigmaAA2*(double)(mcAA*mcAA));
+                double N_C = (double)M_AB / (2d * P[i] * P[j]);
+
+                //overflow issues
+                double dI = (double)I;
+                double dJ = (double)J;
+                double sigmaAA2 = (dI * dI + dJ * dJ) / (dI * dJ * (dI + dJ)) + 1d / (double)M_AB;
+
+                //Assume 1 of missing doubles has been detected, so M/2
+                int mcAA = (int)(N_C * P[i] * P[i] - (double)(M_AA) + 0.5d);
+                int mcBB = (int)(N_C * P[j] * P[j] - (double)(M_BB) + 0.5d);
+
+                missingCounts[i] = mcAA;
+                missingSigma2[i] = (int)(sigmaAA2 * (double)mcAA * (double)mcAA + 0.5d) + M_AA;
             }
-            */
+            else
+            {
+                missingCounts[i] = 0;
+                missingSigma2[i] = 0;
+            }
+            missingCounts[N] += missingCounts[i];
+            missingCounts[N + 1] = useMultiIonTrueCounts();
+            //missingCounts[N + 1] = multiIonTrueCounts[N + 2, 0] + missingCounts[N] + missingCounts[N];
         }
     }
 }

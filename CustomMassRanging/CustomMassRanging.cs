@@ -19,7 +19,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Media;
 
-//using ClosedXML.Excel; // NuGet install ClosedXML
+//using NanoXLSX; // NuGet install NanoXLSX
 
 /// CustomMassRanging
 /// 
@@ -56,7 +56,7 @@ using System.Windows.Media;
 ///     1) Double-clicking does not completely unzoom, you need to do it twice
 ///     2) The auto-y-scaling does not work correctly
 ///     3) Log to lin can also have unexpected results
-///     4) Interesting:  The plot is X vs. Z (it is a view into a 3D graph).  So, the renering
+///     4) Interesting:  The plot is X vs. Z (it is a view into a 3D graph).  So, the rendering
 ///     of varios plots is orderd by the Y value (negative being in front and positive in back).
 ///     5) Looking for a work around to current Sphere and Points plotting options.  Not useful.
 
@@ -561,12 +561,12 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
                     uncorrSSInt[j] = 0;
                     for (int i = 0; i < normMaxUncorrStart; i++)
                     {
-                        sepPlot[i].X = (float)(i * MultiHits.DistRes);
+                        sepPlot[i].X = (float)((double)i * (double)multiHits.DistRes);
                         sepPlot[i].Y = multiHits.dpDistanceCorrelations[j, 0, 2, i];
                     }
                     for (int i = normMaxUncorrStart; i < MultiHits.NDistBins; i++)
                     {
-                        sepPlot[i].X = (float)(i * MultiHits.DistRes);
+                        sepPlot[i].X = (float)((double)i * (double)multiHits.DistRes);
                         sepPlot[i].Y = multiHits.dpDistanceCorrelations[j, 0, 2, i];
                         uncorrSSInt[j] += multiHits.dpDistanceCorrelations[j, 0, 2, i];
                     }
@@ -575,7 +575,7 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
                 {
                     for (int i = 0; i < MultiHits.NDistBins; i++)
                     {
-                        sepPlot[i].X = (float)(i * MultiHits.DistRes);
+                        sepPlot[i].X = (float)((double)i * (double)multiHits.DistRes);
                         sepPlot[i].Y = multiHits.dpDistanceCorrelations[j, 0, 2, i];
                     }
                 }
@@ -612,7 +612,7 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
                 //distanceCorrelations[range1][dp][type 0=all, 1=non-same-same, 2=same-same][NDISTBINS]
                 for (int i = 0; i < MultiHits.NDistBins; i++)
                 {
-                    sepPlot[i].X = (float)(i * MultiHits.DistRes);
+                    sepPlot[i].X = (float)((double)i * (double)multiHits.DistRes);
                     sepPlot[i].Y = (int)((double)multiHits.dpDistanceCorrelations[j, 0, 1, i] * normalize + 0.49d);
                 }
 
@@ -641,7 +641,7 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
                     //distanceCorrelations[range1][dp][type 0=all, 1=non-same-same, 2=same-same][NDISTBINS]
                     for (int i = 0; i < MultiHits.NDistBins; i++)
                     {
-                        sepPlot[i].X = (float)(i * MultiHits.DistRes);
+                        sepPlot[i].X = (float)((double)i * (double)multiHits.DistRes);
                         sepPlot[i].Y = multiHits.dpDistanceCorrelations[j, 0, 0, i];
                     }
 
@@ -673,12 +673,12 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
                     uncorrSSInt[j] = 0;
                     for (int i = 0; i < normMaxUncorrStart; i++)
                     {
-                        sepPlot[i].X = (float)(i * MultiHits.DistRes);
+                        sepPlot[i].X = (float)((double)i * (double)multiHits.DistRes);
                         sepPlot[i].Y = multiHits.dpDistanceCorrelations[j, Parameters.IPseudoMultiMaxdp + 1, 2, i];
                     }
                     for (int i = normMaxUncorrStart; i < MultiHits.NDistBins; i++)
                     {
-                        sepPlot[i].X = (float)(i * MultiHits.DistRes);
+                        sepPlot[i].X = (float)((double)i * (double)multiHits.DistRes);
                         sepPlot[i].Y = multiHits.dpDistanceCorrelations[j, Parameters.IPseudoMultiMaxdp + 1, 2, i];
                         uncorrSSInt[j] += multiHits.dpDistanceCorrelations[j, Parameters.IPseudoMultiMaxdp + 1, 2, i];
                     }
@@ -687,7 +687,7 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
                 {
                     for (int i = 0; i < MultiHits.NDistBins; i++)
                     {
-                        sepPlot[i].X = (float)(i * MultiHits.DistRes);
+                        sepPlot[i].X = (float)((double)i * (double)multiHits.DistRes);
                         sepPlot[i].Y = multiHits.dpDistanceCorrelations[j, Parameters.IPseudoMultiMaxdp + 1, 2, i];
                     }
                 }
@@ -724,7 +724,7 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
                 //distanceCorrelations[range1][dp][type 0=all, 1=non-same-same, 2=same-same][NDISTBINS]
                 for (int i = 0; i < MultiHits.NDistBins; i++)
                 {
-                    sepPlot[i].X = (float)(i * MultiHits.DistRes);
+                    sepPlot[i].X = (float)((double)i * (double)multiHits.DistRes);
                     sepPlot[i].Y = (int)((double)multiHits.dpDistanceCorrelations[j, Parameters.IPseudoMultiMaxdp + 1, 1, i] * normalize + 0.49d);
                 }
 
@@ -753,7 +753,7 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
                     //distanceCorrelations[range1][dp][type 0=all, 1=non-same-same, 2=same-same][NDISTBINS]
                     for (int i = 0; i < MultiHits.NDistBins; i++)
                     {
-                        sepPlot[i].X = (float)(i * MultiHits.DistRes);
+                        sepPlot[i].X = (float)((double)i * (double)multiHits.DistRes);
                         sepPlot[i].Y = multiHits.dpDistanceCorrelations[j, Parameters.IPseudoMultiMaxdp + 1, 0, i];
                     }
 
@@ -779,6 +779,11 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
                 range.Missing = multiHits.missingCounts[j];
                 range.MissingSigma2 = multiHits.missingSigma2[j];
                 j++;
+            }
+            else
+            {
+                range.Missing = 0;
+                range.MissingSigma2 = 0;
             }
         }
 
@@ -1145,6 +1150,8 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
                 tableEntry.Tail *= (double)value;
                 //value*value (not just value) for decomposed error propogation
                 tableEntry.BgdSigma2 *= (double)(value * value);
+                tableEntry.Missing *= (double)value;
+                tableEntry.MissingSigma2 *= (double)(value * value);
 
                 bool match = false;
                 foreach (var entry in DecomposedCompositionTable)
@@ -1630,6 +1637,7 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
         return true;
     }
 }
+
 public class Scheme
 {
     public static RangeScheme DetermineRangeScheme(double leftDistance, double rightDistance, double criteria)
@@ -1666,6 +1674,8 @@ public partial class MyViewableString : ObservableObject
     private string correlatedpseudomultistable = string.Empty;
     private string uncorrelatedpseudomultistable = string.Empty;
     private string summary = string.Empty;
+    private string ncplot = string.Empty;
+    private string siIsotope = string.Empty;
     public string Value
     {
         get => value;
@@ -1720,5 +1730,15 @@ public partial class MyViewableString : ObservableObject
     {
         get => summary;
         set => SetProperty(ref this.summary, value);
+    }
+    public string Ncplot
+    {
+        get => ncplot;
+        set => SetProperty(ref this.ncplot, value);
+    }
+    public string SiIsotope
+    {
+        get => siIsotope;
+        set => SetProperty(ref this.siIsotope, value);
     }
 }

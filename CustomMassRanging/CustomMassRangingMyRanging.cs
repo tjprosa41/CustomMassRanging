@@ -238,6 +238,45 @@ namespace CustomMassRanging
         public void DetermineRange(float dPos, RangeScheme? scheme, Parameters parameters, ref float newLeft, ref float newRight,
             ref double netMax, ref double raw, ref double leftBgd, ref double rightBgd)
         {
+            int shift = 0;
+
+            //Quickly added flag to allow one to ignore auto ranging (manual) for multi analysis.  Needs to be further tested.
+            if (parameters.bUseManualRanging)
+            {
+                //newLeft = unchanged;
+                //newRight = unchanged;
+                netMax = 0f;
+                raw = 0f;
+                leftBgd = 0f;
+                rightBgd = 0f;
+
+                int oldLeft = GetIndex(newLeft);
+                int oldRight = GetIndex(newRight);
+                netMax = NetMax(scheme, oldLeft, oldRight, ref shift, ref raw); //shift is a return value...set to zero inside to start
+
+                //Left is the same regardless of bUseFixedRangingWidth
+                if (scheme == RangeScheme.Left || scheme == RangeScheme.LeftTail)
+                {
+                    int nBinsDelta = (int)((float)(parameters.DLeftRangeDelta / BinWidth) + 0.5d);
+                    if (oldLeft - nBinsDelta < 0) nBinsDelta = oldLeft;
+                    leftBgd = Integrate(oldLeft, oldRight, -nBinsDelta);
+                    rightBgd = 0;
+                    netMax -= leftBgd;
+                }
+                else if (scheme == RangeScheme.Half)
+                {
+                    leftBgd = HalfBackgroundLeft(oldLeft, oldRight);
+                    rightBgd = HalfBackgroundRight(oldLeft, oldRight);
+                }
+                else if (scheme == RangeScheme.Quarter)
+                {
+                    leftBgd = QuarterBackgroundLeft(oldLeft, oldRight);
+                    rightBgd = QuarterBackgroundRight(oldLeft, oldRight);
+                }
+                return;
+            }
+
+
             int startIndex = GetIndex(dPos);
             // If Out of Range return dPos and zeros
             if (startIndex >= Values.Length)
@@ -274,7 +313,6 @@ namespace CustomMassRanging
             int width = nBinsMin;
             int left = startIndex - width / 2 + 1;
             int right = startIndex + width / 2;
-            int shift = 0;
 
             //Left is the same regardless of bUseFixedRangingWidth
             if (scheme == RangeScheme.Left || scheme == RangeScheme.LeftTail)

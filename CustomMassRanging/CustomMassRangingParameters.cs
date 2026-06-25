@@ -1,6 +1,7 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 using System.Numerics;
+using System.Xml.Linq;
 
 namespace CustomMassRanging
 {
@@ -127,10 +128,20 @@ namespace CustomMassRanging
         public double dSeparationCriteria = 8d;
 
         [ObservableProperty]
+        [field: Display(Name = "P[i] Use", GroupName = "Multi-Hit Parameters",
+            Description = "Ranges to use for P[i] missing calculations.\n")]
+        public EMultiPiCalc eMultiPiCalcUse = EMultiPiCalc.All;
+
+        [ObservableProperty]
         [field: Display(Name = "Use Detector Separations", GroupName = "Multi-Hit Parameters",
-            Description = "Ion separation distances based on detector units or reconstructed\n" +
-                          "units (mm or nm).")]
+        Description = "Ion separation distances based on detector units or reconstructed\n" +
+                      "units (mm or nm).")]
         public bool bUseDetectorSeparations = false;
+
+        [ObservableProperty]
+        [field: Display(Name = "Use Manual Ranging", GroupName = "Multi-Hit Parameters",
+            Description = "Use existing ranging start of extension.")]
+        public bool bUseManualRanging = false;
 
         [ObservableProperty]
         [field: Display(Name = "Pseudo-Multi Max dp", GroupName = "Multi-Hit Parameters",
@@ -210,6 +221,8 @@ namespace CustomMassRanging
             SKeyRange = properties.SKeyRange;
             DSeparationCriteria = properties.DSeparationCriteria;
             BUseDetectorSeparations = properties.BUseDetectorSeparations;
+            BUseManualRanging = properties.BUseManualRanging;
+            EMultiPiCalcUse = properties.EMultiPiCalcUse;
             IPseudoMultiMaxdp = properties.IPseudoMultiMaxdp;
             ESepPlotScaling = properties.ESepPlotScaling;
             EPlotsList = properties.EPlotsList;
@@ -270,5 +283,16 @@ namespace CustomMassRanging
         SelectedAndOthers,
         [Display(Name = "All")]
         All
+    }
+    public enum EMultiPiCalc
+    {
+        [Display(Name = "All")]
+        All,
+        [Display(Name = "!Other")]
+        NotOther,
+        [Display(Name = "!Unranged")]
+        NotUnranged,
+        [Display(Name = "!Either")]
+        NotEither
     }
 }

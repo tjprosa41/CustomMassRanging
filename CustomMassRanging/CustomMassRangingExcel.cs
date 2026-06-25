@@ -1,9 +1,11 @@
-﻿using IronXL;
+﻿//using IronXL;
+using NanoXLSX;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Numerics;
 using System.Reflection;
+using static System.Windows.Forms.VisualStyles.VisualStyleElement;
 
 namespace CustomMassRanging
 {
@@ -21,148 +23,145 @@ namespace CustomMassRanging
             string saveFileName)
         {
             // Create a new Excel Workbook
-            WorkBook workBook = WorkBook.Create(ExcelFileFormat.XLSX);
-
-            List<string> tabNames = new List<string> { "Parameters", "RangesTable", "MassHistogram", "IonicComposition", "DecomposedComposition",
-                "MultihitInformation", "SeparationPlots"};
-
-            WorkSheet[] workSheet = new WorkSheet[tabNames.Count];
+            Workbook workBook = new Workbook(saveFileName, "Parameters"); //0
+            PropertyInfo[] parametersProperties = typeof(Parameters).GetProperties();          
             int counter = 0;
-            foreach (string tab in tabNames)
-            {
-                workSheet[counter++] = workBook.CreateWorkSheet(tab);
-            }
-
-            int w = 0;
-            PropertyInfo[] parametersProperties = typeof(Parameters).GetProperties();
-            counter = 0;
             foreach (PropertyInfo property in parametersProperties)
             {
                 if (property.Name.Contains("Upper") || property.Name.Contains("Lower")) continue;
-                workSheet[w].SetCellValue(counter, 0, property.Name);
+                workBook.CurrentWorksheet.AddCell(property.Name,0, counter);
                 var value = property.GetValue(parameters);
-                if (value is Enum) workSheet[w].SetCellValue(counter++, 1, value.ToString());
-                else workSheet[w].SetCellValue(counter++, 1, value);
+                if (value is Enum) workBook.CurrentWorksheet.AddCell(value.ToString(), 1, counter++);
+                else workBook.CurrentWorksheet.AddCell(value, 1, counter++);
             }
 
-            w = 1;
-            workSheet[w].SetCellValue(0, 0, "Multi");
-            workSheet[w].SetCellValue(0, 1, "Color");
-            workSheet[w].SetCellValue(0, 2, "Ion");
-            workSheet[w].SetCellValue(0, 3, "Peak(Da)");
-            workSheet[w].SetCellValue(0, 4, "Min(Da)");
-            workSheet[w].SetCellValue(0, 5, "Max(Da)");
-            workSheet[w].SetCellValue(0, 6, "Counts");
-            workSheet[w].SetCellValue(0, 7, "Scheme");
-            workSheet[w].SetCellValue(0, 8, "TailCounts");
+            workBook.AddWorksheet("RangesTable"); //1
+            workBook.CurrentWorksheet.AddCell("Multi", 0, 0);
+            workBook.CurrentWorksheet.AddCell("Color", 1, 0);
+            workBook.CurrentWorksheet.AddCell("Ion", 2, 0);
+            workBook.CurrentWorksheet.AddCell("Peak(Da)", 3, 0);
+            workBook.CurrentWorksheet.AddCell("Min(Da)", 4, 0);
+            workBook.CurrentWorksheet.AddCell("Max(Da)", 5, 0);
+            workBook.CurrentWorksheet.AddCell("Counts", 6, 0);
+            workBook.CurrentWorksheet.AddCell("Scheme", 7, 0);
+            workBook.CurrentWorksheet.AddCell("Bgd", 8, 0);
+            workBook.CurrentWorksheet.AddCell("TailCounts", 9, 0);
             counter = 1;
             foreach (RangesTableEntries entry in rangesTable)
             {
-                workSheet[w].SetCellValue(counter, 0, entry.MultiUse);
-                workSheet[w].SetCellValue(counter, 1, entry.Color.ToString());
-                workSheet[w].SetCellValue(counter, 2, entry.Name);
-                workSheet[w].SetCellValue(counter, 3, entry.Pos);
-                workSheet[w].SetCellValue(counter, 4, entry.Min);
-                workSheet[w].SetCellValue(counter, 5, entry.Max);
-                workSheet[w].SetCellValue(counter, 6, entry.Counts);
-                workSheet[w].SetCellValue(counter, 7, entry.Scheme.ToString());
-                workSheet[w].SetCellValue(counter++, 8, entry.Tail);
+                workBook.CurrentWorksheet.AddCell(entry.MultiUse, 0, counter);
+                workBook.CurrentWorksheet.AddCell(entry.Color.ToString(), 1, counter);
+                workBook.CurrentWorksheet.AddCell(entry.Name, 2, counter);
+                workBook.CurrentWorksheet.AddCell(entry.Pos, 3, counter);
+                workBook.CurrentWorksheet.AddCell(entry.Min, 4, counter);
+                workBook.CurrentWorksheet.AddCell(entry.Max, 5, counter);
+                workBook.CurrentWorksheet.AddCell(entry.Counts, 6, counter);
+                workBook.CurrentWorksheet.AddCell(entry.Scheme.ToString(), 7, counter);
+                workBook.CurrentWorksheet.AddCell(entry.Bgd, 8, counter);
+                workBook.CurrentWorksheet.AddCell(entry.Tail, 9, counter++);
             }
 
-            w = 2;
-            workSheet[w].SetCellValue(0, 0, "MassToChargeRatio(Da)");
-            workSheet[w].SetCellValue(0, 1, "Counts");
+            workBook.AddWorksheet("MassHistogram"); //2
+            workBook.CurrentWorksheet.AddCell("MassToChargeRatio(Da)", 0, 0);
+            workBook.CurrentWorksheet.AddCell("Counts", 1, 0);
             if (values != null)
             {
                 for (int i = 0; i < values.Values.Length; i++)
                 {
-                    workSheet[w].SetCellValue(i + 1, 0, values.Values[i].X);
-                    workSheet[w].SetCellValue(i + 1, 1, values.Values[i].Y);
+                    workBook.CurrentWorksheet.AddCell(values.Values[i].X, 0, i + 1);
+                    workBook.CurrentWorksheet.AddCell(values.Values[i].Y, 1, i + 1);
                 }
             }
 
-            w = 3;
-            workSheet[w].SetCellValue(0, 0, "Ion");
-            workSheet[w].SetCellValue(0, 1, "Composition");
-            workSheet[w].SetCellValue(0, 2, "Sigma/DT(95%CL)");
-            workSheet[w].SetCellValue(0, 3, "Counts");
-            workSheet[w].SetCellValue(0, 4, "Background");
-            workSheet[w].SetCellValue(0, 5, "Net");
-            workSheet[w].SetCellValue(0, 6, "Tail");
+            workBook.AddWorksheet("IonicComposition"); //3
+            workBook.CurrentWorksheet.AddCell("Ion", 0, 0);
+            workBook.CurrentWorksheet.AddCell("Composition", 1, 0);
+            workBook.CurrentWorksheet.AddCell("Sigma/DT(95%CL)", 2, 0);
+            workBook.CurrentWorksheet.AddCell("Counts", 3, 0);
+            workBook.CurrentWorksheet.AddCell("Background", 4, 0);
+            workBook.CurrentWorksheet.AddCell("Net", 5, 0);
+            workBook.CurrentWorksheet.AddCell("Tail", 6, 0);
+            workBook.CurrentWorksheet.AddCell("Missing", 7, 0);
+            workBook.CurrentWorksheet.AddCell("CorrectedComposition", 8, 0);
+            workBook.CurrentWorksheet.AddCell("Sigma/DT(95%CL)", 9, 0);
             counter = 1;
             foreach (CompositionTableEntries entry in ionicCompositionTable)
             {
-                workSheet[w].SetCellValue(counter, 0, entry.Name);
-                workSheet[w].SetCellValue(counter, 1, entry.Composition);
-                workSheet[w].SetCellValue(counter, 2, entry.SigmaString);
-                workSheet[w].SetCellValue(counter, 3, entry.Counts);
-                workSheet[w].SetCellValue(counter, 4, entry.Bgd);
-                workSheet[w].SetCellValue(counter, 5, entry.Net);
-                workSheet[w].SetCellValue(counter++, 6, entry.Tail);
+                workBook.CurrentWorksheet.AddCell(entry.Name, 0, counter);
+                workBook.CurrentWorksheet.AddCell(entry.Composition, 1, counter);
+                workBook.CurrentWorksheet.AddCell(entry.SigmaString, 2, counter);
+                workBook.CurrentWorksheet.AddCell(entry.Counts, 3, counter);
+                workBook.CurrentWorksheet.AddCell(entry.Bgd, 4, counter);
+                workBook.CurrentWorksheet.AddCell(entry.Net, 5, counter);
+                workBook.CurrentWorksheet.AddCell(entry.Tail, 6, counter);
+                workBook.CurrentWorksheet.AddCell(entry.Missing, 7, counter);
+                workBook.CurrentWorksheet.AddCell(entry.CompositionMissing, 8, counter);
+                workBook.CurrentWorksheet.AddCell(entry.SigmaMissingString, 9, counter++);
             }
-            workSheet[w].SetCellValue(counter, 0, ionicCompositionTotals.Name);
-            workSheet[w].SetCellValue(counter, 1, ionicCompositionTotals.Composition);
-            workSheet[w].SetCellValue(counter, 2, "NA");
-            workSheet[w].SetCellValue(counter, 3, ionicCompositionTotals.Counts);
-            workSheet[w].SetCellValue(counter, 4, ionicCompositionTotals.Bgd);
-            workSheet[w].SetCellValue(counter, 5, ionicCompositionTotals.Net);
-            workSheet[w].SetCellValue(counter, 6, ionicCompositionTotals.Tail);
+            workBook.CurrentWorksheet.AddCell(ionicCompositionTotals.Name, 0, counter);
+            workBook.CurrentWorksheet.AddCell(ionicCompositionTotals.Composition, 1, counter);
+            workBook.CurrentWorksheet.AddCell("NA", 2, counter);
+            workBook.CurrentWorksheet.AddCell(ionicCompositionTotals.Counts, 3, counter);
+            workBook.CurrentWorksheet.AddCell(ionicCompositionTotals.Bgd, 4, counter);
+            workBook.CurrentWorksheet.AddCell(ionicCompositionTotals.Net, 5, counter);
+            workBook.CurrentWorksheet.AddCell(ionicCompositionTotals.Tail, 6, counter);
+            workBook.CurrentWorksheet.AddCell(ionicCompositionTotals.Missing, 7, counter);
+            workBook.CurrentWorksheet.AddCell(ionicCompositionTotals.CompositionMissing, 8, counter);
+            workBook.CurrentWorksheet.AddCell("NA", 9, counter);
 
-            w = 4;
-            workSheet[w].SetCellValue(0, 0, "Element");
-            workSheet[w].SetCellValue(0, 1, "Composition");
-            workSheet[w].SetCellValue(0, 2, "Sigma/DT(95%CL)");
-            workSheet[w].SetCellValue(0, 3, "Counts");
-            workSheet[w].SetCellValue(0, 4, "Background");
-            workSheet[w].SetCellValue(0, 5, "Net");
-            workSheet[w].SetCellValue(0, 6, "Tail");
+            workBook.AddWorksheet("DecomposedComposition"); //4
+            workBook.CurrentWorksheet.AddCell("Element", 0, 0);
+            workBook.CurrentWorksheet.AddCell("Composition", 1, 0);
+            workBook.CurrentWorksheet.AddCell("Sigma/DT(95%CL)", 2, 0);
+            workBook.CurrentWorksheet.AddCell("Counts", 3, 0);
+            workBook.CurrentWorksheet.AddCell("Background", 4, 0);
+            workBook.CurrentWorksheet.AddCell("Net", 5, 0);
+            workBook.CurrentWorksheet.AddCell("Tail", 6, 0);
+            workBook.CurrentWorksheet.AddCell("Missing", 7, 0);
+            workBook.CurrentWorksheet.AddCell("CorrectedComposition", 8, 0);
+            workBook.CurrentWorksheet.AddCell("Sigma/DT(95%CL)", 9, 0);
             counter = 1;
             foreach (CompositionTableEntries entry in decomposedCompositionTable)
             {
-                workSheet[w].SetCellValue(counter, 0, entry.Name);
-                workSheet[w].SetCellValue(counter, 1, entry.Composition);
-                workSheet[w].SetCellValue(counter, 2, entry.SigmaString);
-                workSheet[w].SetCellValue(counter, 3, entry.Counts);
-                workSheet[w].SetCellValue(counter, 4, entry.Bgd);
-                workSheet[w].SetCellValue(counter, 5, entry.Net);
-                workSheet[w].SetCellValue(counter++, 6, entry.Tail);
+                workBook.CurrentWorksheet.AddCell(entry.Name, 0, counter);
+                workBook.CurrentWorksheet.AddCell(entry.Composition, 1, counter);
+                workBook.CurrentWorksheet.AddCell(entry.SigmaString, 2, counter);
+                workBook.CurrentWorksheet.AddCell(entry.Counts, 3, counter);
+                workBook.CurrentWorksheet.AddCell(entry.Bgd, 4, counter);
+                workBook.CurrentWorksheet.AddCell(entry.Net, 5, counter);
+                workBook.CurrentWorksheet.AddCell(entry.Tail, 6, counter);
+                workBook.CurrentWorksheet.AddCell(entry.Missing, 7, counter);
+                workBook.CurrentWorksheet.AddCell(entry.CompositionMissing, 8, counter);
+                workBook.CurrentWorksheet.AddCell(entry.SigmaMissingString, 9, counter++);
             }
-            workSheet[w].SetCellValue(counter, 0, decomposedCompositionTotals.Name);
-            workSheet[w].SetCellValue(counter, 1, decomposedCompositionTotals.Composition);
-            workSheet[w].SetCellValue(counter, 2, "NA");
-            workSheet[w].SetCellValue(counter, 3, decomposedCompositionTotals.Counts);
-            workSheet[w].SetCellValue(counter, 4, decomposedCompositionTotals.Bgd);
-            workSheet[w].SetCellValue(counter, 5, decomposedCompositionTotals.Net);
-            workSheet[w].SetCellValue(counter, 6, decomposedCompositionTotals.Tail);
+            workBook.CurrentWorksheet.AddCell(decomposedCompositionTotals.Name, 0, counter);
+            workBook.CurrentWorksheet.AddCell(decomposedCompositionTotals.Composition, 1, counter);
+            workBook.CurrentWorksheet.AddCell("NA", 2, counter);
+            workBook.CurrentWorksheet.AddCell(decomposedCompositionTotals.Counts, 3, counter);
+            workBook.CurrentWorksheet.AddCell(decomposedCompositionTotals.Bgd, 4, counter);
+            workBook.CurrentWorksheet.AddCell(decomposedCompositionTotals.Net, 5, counter);
+            workBook.CurrentWorksheet.AddCell(decomposedCompositionTotals.Tail, 6, counter);
+            workBook.CurrentWorksheet.AddCell(decomposedCompositionTotals.Missing, 7, counter);
+            workBook.CurrentWorksheet.AddCell(decomposedCompositionTotals.CompositionMissing, 8, counter);
+            workBook.CurrentWorksheet.AddCell("NA", 9, counter);
 
-            w = 5;
+            workBook.AddWorksheet("MultihitInformation"); //5
             char[] delimeterChars = { '\n' };
             string[] lines = multisInformation.Split(delimeterChars);
             for (int i = 0; i < lines.Length; i++)
-                workSheet[w].SetCellValue(i, 0, lines[i]);
-            /*
-            char[] delimeterChar = { ' ' };
-            for (int i=0; i<lines.Length; i++)
-            {
-                string[] words = lines[i].Split(delimeterChar, StringSplitOptions.RemoveEmptyEntries);
-                for (int j = 0; j < words.Length; j++)
-                {
-                    if (words[j][0].Equals('=')) words[j] = "'" + words[j];
-                    workSheet[w].SetCellValue(i, j, words[j]);
-                }
-            }
-            */
+                workBook.CurrentWorksheet.AddCell(lines[i], 0, i);
 
-            w = 6;
+            workBook.AddWorksheet("SeparationPlots"); //6
             counter = 0;
             foreach (Vector2[] plot in savedPlots)
             {
-                workSheet[w].SetCellValue(0, 2 * counter, "Separation Distance (nm or mm)");
-                workSheet[w].SetCellValue(0, 2 * counter + 1, savedLegends[counter]);
+                workBook.CurrentWorksheet.AddCell("Separation Distance (nm or mm)", 2 * counter, 0);
+                workBook.CurrentWorksheet.AddCell(savedLegends[counter], 2 * counter + 1, 0);
                 for (int i = 0; i < plot.Length; i++)
                 {
-                    workSheet[w].SetCellValue(i + 1, 2 * counter, plot[i].X);
-                    workSheet[w].SetCellValue(i + 1, 2 * counter + 1, plot[i].Y);
+                    string X = $"{plot[i].X:N3}"; 
+                    workBook.CurrentWorksheet.AddCell(float.Parse(X), 2 * counter, i + 1);
+                    workBook.CurrentWorksheet.AddCell(plot[i].Y, 2 * counter + 1, i + 1);
                 }
                 counter++;
             }

@@ -31,10 +31,13 @@
 		<NuspecFile>CustomMassRanging.nuspec</NuspecFile>
 	</PropertyGroup>
 
+	<!-- <PackageReference Include="IronXL.Excel" Version="2026.2.1" /> -->
 	<ItemGroup Label="Package Dependencies">
 		<PackageReference Include="Cameca.CustomAnalysis.Utilities" Version="4.1.0" />
-		<PackageReference Include="IronXL.Excel" Version="2026.2.1" />
+		<PackageReference Include="Google.Protobuf" Version="3.35.0" />
 		<PackageReference Include="Microsoft.ServiceFabric" Version="10.1.2841" />
+		<PackageReference Include="NanoXLSX" Version="3.1.0" />
+		<PackageReference Include="Polly" Version="8.7.0" />
 		<PackageReference Include="System.Reactive" Version="6.1.0" />
 	</ItemGroup>
 
