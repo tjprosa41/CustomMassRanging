@@ -31,7 +31,7 @@
 		<NuspecFile>CustomMassRanging.nuspec</NuspecFile>
 	</PropertyGroup>
 
-	<!-- <PackageReference Include="IronXL.Excel" Version="2026.2.1" /> -->
+	<!-- <PackageReference Include="IronXL.Excel" Version="2026.2.1" /> Not using any more because of license requirements.-->
 	<ItemGroup Label="Package Dependencies">
 		<PackageReference Include="Cameca.CustomAnalysis.Utilities" Version="4.1.0" />
 		<PackageReference Include="Google.Protobuf" Version="3.35.0" />
