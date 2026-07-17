@@ -441,9 +441,10 @@
                                     <LineBreak/>
                                     <Run Foreground="Blue" FontSize ="12" Text="{Binding Path=MultisInformation.Infobyiontype, Mode=OneWay}" /><Bold>Correlated Multis Table:</Bold>
                                     <LineBreak/>
-                                    <Run FontSize ="12" Text="{Binding Path=MultisInformation.Correlatedmultistable, Mode=OneWay}" /><Bold>Correlated Multis Table, Deadtime Corrected, Normalized Ratio:</Bold>
+                                    <Run FontSize ="12" Text="{Binding Path=MultisInformation.Correlatedmultistable, Mode=OneWay}" /><Bold>Correlated Multis Table, Deadtime Corrected, #Stdevs:</Bold>
+                                    <!-- <Bold>Correlated Multis Table, Deadtime Corrected, Normalized Ratio:</Bold>
                                     <LineBreak/>
-                                    <Run FontSize ="12" Text="{Binding Path=MultisInformation.CorrelatedmultistableNormalized, Mode=OneWay}" /><Bold>Correlated Multis Table, Deadtime Corrected, #Stdevs:</Bold>
+                                    <Run FontSize ="12" Text="{Binding Path=MultisInformation.CorrelatedmultistableNormalized, Mode=OneWay}" /> -->
                                     <LineBreak/>
                                     <Run FontSize ="12" Text="{Binding Path=MultisInformation.CorrelatedmultistableStdevs, Mode=OneWay}" /><Bold>Uncorrelated Multis Table:</Bold>
                                     <LineBreak/>
@@ -453,9 +454,7 @@
                                     <LineBreak/>
                                     <Run FontSize ="12" Text="{Binding Path=MultisInformation.Uncorrelatedpseudomultistable, Mode=OneWay}" /><Bold>Summary:</Bold>
                                     <LineBreak/>
-                                    <Run FontSize ="12" Text="{Binding Path=MultisInformation.Summary, Mode=OneWay}" /><Bold>Nc Convergence Plot:</Bold>
-                                    <LineBreak/>
-                                    <Run FontSize ="12" Text="{Binding Path=MultisInformation.Ncplot, Mode=OneWay}" /><Bold>Si Isotope Evaluation:</Bold>
+                                    <Run FontSize ="12" Text="{Binding Path=MultisInformation.Summary, Mode=OneWay}" /><Bold>Si Isotope Evaluation:</Bold>
                                     <LineBreak/>
                                     <Run FontSize ="12" Text="{Binding Path=MultisInformation.SiIsotope, Mode=OneWay}" />
                                 </Paragraph>

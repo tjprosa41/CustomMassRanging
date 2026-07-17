@@ -145,9 +145,9 @@ public partial class CustomMassRangingProperties : ObservableObject
     public double dSeparationCriteria = 8d;
 
     [ObservableProperty]
-    [field: Display(Name = "P[i] Use", GroupName = "Multi-Hit Parameters",
-        Description = "Ranges to use for P[i] missing calculations.\n")]
-    public EMultiPiCalc eMultiPiCalcUse = EMultiPiCalc.All;
+    [field: Display(Name = "Use Nat. Ab.", GroupName = "Multi-Hit Parameters",
+        Description = "Use Natural Abundances rather than self-consistent relative abundances for determining mission ions for same chrage-state pairs.\n")]
+    public bool bUseNatAbundances = false;
 
     [ObservableProperty]
     [field: Display(Name = "Use Detector Separations", GroupName = "Multi-Hit Parameters",
@@ -217,7 +217,7 @@ public partial class CustomMassRangingProperties : ObservableObject
         DSeparationCriteria = parameters.DSeparationCriteria;
         BUseDetectorSeparations = parameters.BUseDetectorSeparations;
         BUseManualRanging = parameters.BUseManualRanging;
-        EMultiPiCalcUse = parameters.EMultiPiCalcUse;
+        bUseNatAbundances = parameters.BUseNatAbundances;
         IPseudoMultiMaxdp = parameters.IPseudoMultiMaxdp;
         ESepPlotScaling = parameters.ESepPlotScaling;
         EPlotsList = parameters.EPlotsList;
@@ -259,7 +259,7 @@ public partial class CustomMassRangingProperties : ObservableObject
         copy.DSensitivity = DSensitivity;
         copy.BUseDetectorSeparations = BUseDetectorSeparations;
         copy.BUseManualRanging = BUseManualRanging;
-        copy.EMultiPiCalcUse = EMultiPiCalcUse;
+        copy.BUseNatAbundances = BUseNatAbundances;
         copy.IPseudoMultiMaxdp = IPseudoMultiMaxdp;
         copy.ESepPlotScaling = ESepPlotScaling;
         copy.EPlotsList = EPlotsList;

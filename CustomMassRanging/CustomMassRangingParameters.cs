@@ -128,9 +128,9 @@ namespace CustomMassRanging
         public double dSeparationCriteria = 8d;
 
         [ObservableProperty]
-        [field: Display(Name = "P[i] Use", GroupName = "Multi-Hit Parameters",
-            Description = "Ranges to use for P[i] missing calculations.\n")]
-        public EMultiPiCalc eMultiPiCalcUse = EMultiPiCalc.All;
+        [field: Display(Name = "Use Nat. Ab.", GroupName = "Multi-Hit Parameters",
+            Description = "Use Natural Abundances rather than self-consistent relative abundances for determining mission ions for same chrage-state pairs.\n")]
+        public bool bUseNatAbundances = false;
 
         [ObservableProperty]
         [field: Display(Name = "Use Detector Separations", GroupName = "Multi-Hit Parameters",
@@ -222,7 +222,7 @@ namespace CustomMassRanging
             DSeparationCriteria = properties.DSeparationCriteria;
             BUseDetectorSeparations = properties.BUseDetectorSeparations;
             BUseManualRanging = properties.BUseManualRanging;
-            EMultiPiCalcUse = properties.EMultiPiCalcUse;
+            BUseNatAbundances = properties.BUseNatAbundances;
             IPseudoMultiMaxdp = properties.IPseudoMultiMaxdp;
             ESepPlotScaling = properties.ESepPlotScaling;
             EPlotsList = properties.EPlotsList;

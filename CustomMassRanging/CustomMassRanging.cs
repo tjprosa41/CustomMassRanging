@@ -1668,7 +1668,7 @@ public partial class MyViewableString : ObservableObject
     private string simple = string.Empty;
     private string infobyiontype = string.Empty;
     private string correlatedmultistable = string.Empty;
-    private string correlatedmultistableNormalized = string.Empty;
+    //private string correlatedmultistableNormalized = string.Empty;
     private string correlatedmultistableStdevs = string.Empty;
     private string uncorrelatedmultistable = string.Empty;
     private string correlatedpseudomultistable = string.Empty;
@@ -1701,11 +1701,13 @@ public partial class MyViewableString : ObservableObject
         get => correlatedmultistable;
         set => SetProperty(ref this.correlatedmultistable, value);
     }
+    /*
     public string CorrelatedmultistableNormalized
     {
         get => correlatedmultistableNormalized;
         set => SetProperty(ref this.correlatedmultistableNormalized, value);
     }
+    */
     public string CorrelatedmultistableStdevs
     {
         get => correlatedmultistableStdevs;
@@ -1730,11 +1732,6 @@ public partial class MyViewableString : ObservableObject
     {
         get => summary;
         set => SetProperty(ref this.summary, value);
-    }
-    public string Ncplot
-    {
-        get => ncplot;
-        set => SetProperty(ref this.ncplot, value);
     }
     public string SiIsotope
     {
