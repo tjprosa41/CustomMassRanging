@@ -465,7 +465,7 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
         string extensionDirectory = new DirectoryInfo(Assembly.GetExecutingAssembly().Location).Parent!.FullName;
 
         // And then the full path to your PDF should be
-        string absHelpPath = Path.Join(extensionDirectory, "CustomMassRanging3.1.pdf");
+        string absHelpPath = Path.Join(extensionDirectory, "CustomMassRanging4.0.pdf");
 
         var processStartInfo = new ProcessStartInfo()
         {

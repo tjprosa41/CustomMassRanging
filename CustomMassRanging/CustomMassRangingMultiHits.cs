@@ -1196,7 +1196,7 @@ foreach (string row in rows)
                 PCMETable += $"{"Sigma:",15}";
                 for (int i = 0; i < N; i++)
                     if (missingCounts[i] + totIonCounts[i] > 0)
-                        PCMETable += $"{(int)Math.Round(Math.Sqrt((double)missingSigma2[i])),13:N0}";
+                        PCMETable += $"{Math.Sqrt((double)missingSigma2[i]) / (double)(missingCounts[i] + totIonCounts[i]),13:P1}";
                     else
                         PCMETable += $"{"NA",13}";
                 PCMETable += $"\n";
@@ -1298,7 +1298,7 @@ foreach (string row in rows)
                 for (int i = 0; i < N; i++)
                 {
                     int tot = dpCorMultis[i, i, 0] + missingCounts[i];
-                    if (tot == 0 || missingCounts[i] <0 || missingPairs[i].Equals("None"))
+                    if (tot == 0 || missingCounts[i] <=0 || missingPairs[i].Equals("None"))
                         CorrelatedTable += $"{"NA",13}";
                     else
                         CorrelatedTable += $"{(double)dpCorMultis[i, i, 0] / (double)(tot),13:P2}";
@@ -1631,6 +1631,7 @@ foreach (string row in rows)
             if (Sip[0] >= 0 && Sip[1] >= 0 && Sip[2] >= 0)
                 yesSip = true;
 
+            /*
             if (yesSip || yesSipp)
             {
 
@@ -1904,6 +1905,7 @@ foreach (string row in rows)
                 }
                 s += $"\n\n";
             }
+            */
 
             s += "Pseudo-Based Correction Validation (missing counts corrected, but not background corrected):\n";
             s += "Pseudo multis possess the Pi for correlated events unaffected by deadtime, but may not have sufficient counting statistics.\n";
