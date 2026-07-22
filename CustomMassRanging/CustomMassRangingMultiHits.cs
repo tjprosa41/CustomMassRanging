@@ -14,6 +14,7 @@ using System.Runtime.Intrinsics.Arm;
 using System.Runtime.Intrinsics.X86;
 using System.Security.Cryptography.Pkcs;
 using System.Transactions;
+using System.Windows.Controls.Primitives;
 using System.Windows.Controls.Ribbon;
 using System.Windows.Documents;
 using System.Windows.Input;
@@ -71,7 +72,7 @@ namespace CustomMassRanging
         public int[] missingCounts = null!;
         //public int[] previousMissingCounts = null!;
         public double[,] WijMatrix = null!;      
-        public int[] missingSigma2 = null!;
+        public double[] missingSigma2 = null!;
         public string[] missingPairs = null!;
         //public int[] Nc = null!;
         public int Ncor = 0;
@@ -1196,7 +1197,7 @@ foreach (string row in rows)
                 PCMETable += $"{"Sigma:",15}";
                 for (int i = 0; i < N; i++)
                     if (missingCounts[i] + totIonCounts[i] > 0)
-                        PCMETable += $"{Math.Sqrt((double)missingSigma2[i]) / (double)(missingCounts[i] + totIonCounts[i]),13:P1}";
+                        PCMETable += $"{Math.Sqrt(missingSigma2[i]) / (double)(missingCounts[i] + totIonCounts[i]),13:P1}";
                     else
                         PCMETable += $"{"NA",13}";
                 PCMETable += $"\n";
@@ -1234,7 +1235,7 @@ foreach (string row in rows)
 
                 PCMETable += $"{"Sigma:",15}";
                 for (int i = 0; i < N; i++)
-                    PCMETable += $"{(int)Math.Round(Math.Sqrt((double)missingSigma2[i])),13:N0}";
+                    PCMETable += $"{(int)Math.Round(Math.Sqrt(missingSigma2[i])),13:N0}";
                 PCMETable += $"\n";
                 PCMETable += $"\n";
 
@@ -1286,7 +1287,7 @@ foreach (string row in rows)
 
                 CorrelatedTable += $"{"Sigma:",13}";
                 for (int i = 0; i < N; i++)
-                    CorrelatedTable += $"{(int)Math.Round(Math.Sqrt((double)missingSigma2[i])),13:N0}";
+                    CorrelatedTable += $"{(int)Math.Round(Math.Sqrt(missingSigma2[i])),13:N0}";
                 CorrelatedTable += $"\n";
 
                 CorrelatedTable += $"{"Pair:",13}";
@@ -1715,10 +1716,10 @@ foreach (string row in rows)
                 s += $"{"Sigma:",30}";
                 if (yesSipp)
                     for (int i = 0; i < 3; i++)
-                        s += $"{(int)Math.Round(Math.Sqrt((double)missingSigma2[Sipp[i]])),13:N0}";
+                        s += $"{(int)Math.Round(Math.Sqrt(missingSigma2[Sipp[i]])),13:N0}";
                 if (yesSip)
                     for (int i = 0; i < 3; i++)
-                        s += $"{(int)Math.Round(Math.Sqrt((double)missingSigma2[Sip[i]])),13:N0}";
+                        s += $"{(int)Math.Round(Math.Sqrt(missingSigma2[Sip[i]])),13:N0}";
                 s += $"\n";
 
                 s += $"{"Missing (by 2, nat. ab.):",30}";
@@ -1811,8 +1812,8 @@ foreach (string row in rows)
                                 j = numerator;
                             int MissingCountsi = 0;
                             int MissingCountsj = 0;
-                            int MissingSigma2i = 0;
-                            int MissingSigma2j = 0;
+                            double MissingSigma2i = 0d;
+                            double MissingSigma2j = 0d;
                             string MissingPairsi = "";
                             string MissingPairsj = "";
                             returnPCorMissingCounts(i, j, ref MissingCountsi, ref MissingSigma2i, ref MissingCountsj, ref MissingSigma2j, ref MissingPairsi, ref MissingPairsj);
@@ -1842,8 +1843,8 @@ foreach (string row in rows)
                                 j = numerator;
                             int MissingCountsi = 0;
                             int MissingCountsj = 0;
-                            int MissingSigma2i = 0;
-                            int MissingSigma2j = 0;
+                            double MissingSigma2i = 0d;
+                            double MissingSigma2j = 0d;
                             string MissingPairsi = "";
                             string MissingPairsj = "";
                             returnPCorMissingCounts(i, j, ref MissingCountsi, ref MissingSigma2i, ref MissingCountsj, ref MissingSigma2j, ref MissingPairsi, ref MissingPairsj);
@@ -2017,8 +2018,8 @@ foreach (string row in rows)
                 */
             }
 
-            s += "Pseudo-Based Correction Validation (missing counts corrected, but not background corrected):\n";
-            s += "Pseudo multis possess the Pi for correlated events unaffected by deadtime, but may not have sufficient counting statistics.\n";
+            s += "Pseudo-Based Correction Validation (all has missing counts corrected, but not background corrected, cor does not include corrections):\n";
+            s += "Pseudo multis possess the P[i] for correlated events unaffected by deadtime, but may not have sufficient counting statistics to utilize.\n";
             s += $"{"",15}";
             for (int i = 0; i < N; i++)
                 s += $"{rangeNames[i],13}";
@@ -2038,17 +2039,49 @@ foreach (string row in rows)
             }
             s += $"\n";
             
+            //Ignore missing counts correction
             s += $"{"CSRcor:",15}";
+            string CSRMissingCOR = "";
+            string CSRcorSigma = "";
             for (int i = 0; i < N; i++)
             {
                 bool found = false;
                 int numerator = -1;
                 int denominator = -1;
                 returnCSRPair(i, ref found, ref numerator, ref denominator);
+                double CSR = 0d;
+                double CSRSigma2 = 0d;
                 if (found)
-                    s += $"{(double)(multiIonTrueCounts[numerator, 0] + 2*missingCounts[numerator]) / (double)(multiIonTrueCounts[denominator,0] + 2*missingCounts[denominator]),13:N3}";
+                {
+                    CSR = (double)(multiIonTrueCounts[numerator, 0]) / (double)(multiIonTrueCounts[denominator, 0]);
+                    CSRSigma2 = CSR * CSR * (1d/(double)multiIonTrueCounts[numerator, 0] + 1d/(double)multiIonTrueCounts[denominator, 0]);
+                    s += $"{CSR,13:N3}";
+                    double M12 = (double)dpCorMultis[numerator, denominator, 0] + (double)dpCorMultis[denominator, numerator, 0];
+                    double M11 = 0.5d * M12 * CSR;
+                    double M22 = 0.5d * M12 / CSR;
+                    double MissingCountsi = (int)Math.Round(M11) - dpCorMultis[numerator, numerator, 0];
+                    double MissingSigma2i = (M11 * (M11 * (1d / M12 + CSRSigma2 / (CSR * CSR)))) + (double)dpCorMultis[numerator, numerator, 0];
+                    double MissingCountsj = (int)Math.Round(M22) - dpCorMultis[denominator, denominator, 0];
+                    double MissingSigma2j = (M22 * (M22 * (1d / M12 + CSRSigma2 / (CSR * CSR)))) + (double)dpCorMultis[denominator, denominator, 0];
+                    if (i == numerator)
+                    {
+                        CSRMissingCOR += $"{MissingCountsi,13:N0}";
+                        CSRcorSigma += $"{(int)Math.Round(Math.Sqrt(MissingSigma2i)),13:N0}";
+                    }
+                    else
+                    {
+                        CSRMissingCOR += $"{MissingCountsj,13:N0}";
+                        CSRcorSigma += $"{(int)Math.Round(Math.Sqrt(MissingSigma2j)),13:N0}";
+                    }
+                }
                 else
+                {
                     s += $"{"NA",13}";
+                    CSRMissingCOR += $"{"NA",13}";
+                    CSRcorSigma += $"{"NA",13}";
+                }
+
+
             }
             s += $"\n";
 
@@ -2074,13 +2107,11 @@ foreach (string row in rows)
             s += $"\n";
 
             s += $"{"MissingCor:",15}";
-            for (int i = 0; i < N; i++)
-                    s += $"{missingCounts[i],13:N0}";
+            s += CSRMissingCOR;
             s += $"\n";
 
             s += $"{"Sigma:",15}";
-            for (int i = 0; i < N; i++)
-                s += $"{(int)Math.Round(Math.Sqrt((double)missingSigma2[i])),13:N0}";
+            s += CSRcorSigma;
             s += $"\n";
 
             s += $"{"MissingPcorCSR:",15}";
@@ -2100,13 +2131,21 @@ foreach (string row in rows)
                         j = numerator;
                     int MissingCountsi = 0;
                     int MissingCountsj = 0;
-                    int MissingSigma2i = 0;
-                    int MissingSigma2j = 0;
+                    double MissingSigma2i = 0d;
+                    double MissingSigma2j = 0d;
                     string MissingPairsi = "";
                     string MissingPairsj = "";
                     returnPCorMissingCounts(i, j, ref MissingCountsi, ref MissingSigma2i, ref MissingCountsj, ref MissingSigma2j, ref MissingPairsi, ref MissingPairsj);
-                    s += $"{MissingCountsi,13:N0}";
-                    sigmaString += $"{(int)Math.Round(Math.Sqrt((double)MissingSigma2i)),13:N0}";
+                    if (MissingCountsi == 0 && MissingSigma2i < 0.01d)
+                    {
+                        s += $"{"NA",13}";
+                        sigmaString += $"{"NA",13}";
+                    }
+                    else
+                    {
+                        s += $"{MissingCountsi,13:N0}";
+                        sigmaString += $"{(int)Math.Round(Math.Sqrt(MissingSigma2i)),13:N0}";
+                    }
                 }
                 else
                 {
@@ -2320,7 +2359,7 @@ foreach (string row in rows)
             //
 
             missingCounts = new int[N + 2]; //Only N will have missing, still totals, added based on TotalTrueCORCounts
-            missingSigma2 = new int[N];
+            missingSigma2 = new double[N];
             missingPairs = new string[N];
 
             //Initialize
@@ -2419,23 +2458,23 @@ foreach (string row in rows)
                     {
                         missingCounts[i] = (int)Math.Round(M11) - dpCorMultis[i, i, 0];
                         //I fit some natural isotope uncertainties and the frac error ~ 0.0009^-0.67
-                        missingSigma2[i] = (int)Math.Round(M11 * (M11 * (1d / M12 + 8.1e-7d * Math.Pow(p1, -1.34d) + 8.1e-7d * Math.Pow(p2, -1.34d)))) + dpCorMultis[i, i, 0];
+                        missingSigma2[i] = (M11 * (M11 * (1d / M12 + 8.1e-7d * Math.Pow(p1, -1.34d) + 8.1e-7d * Math.Pow(p2, -1.34d)))) + (double)dpCorMultis[i, i, 0];
                         missingCounts[j] = (int)Math.Round(M22) - dpCorMultis[j, j, 0];
-                        missingSigma2[j] = (int)Math.Round(M22 * (M22 * (1d / M12 + 8.1e-7d * Math.Pow(p1, -1.34d) + 8.1e-7d * Math.Pow(p2, -1.34d)))) + dpCorMultis[j, j, 0];
+                        missingSigma2[j] = (M22 * (M22 * (1d / M12 + 8.1e-7d * Math.Pow(p1, -1.34d) + 8.1e-7d * Math.Pow(p2, -1.34d)))) + (double)dpCorMultis[j, j, 0];
                     }
                     else if ((int)M12==0 || totIonCounts[i]==0 || totIonCounts[j]==0)
                     {
                         missingCounts[i] = 0;
-                        missingSigma2[i] = 0;
+                        missingSigma2[i] = 0d;
                         missingCounts[j] = 0;
-                        missingSigma2[j] = 0;
+                        missingSigma2[j] = 0d;
                     }
                     else
                     {
                         missingCounts[i] = (int)Math.Round(M11) - dpCorMultis[i, i, 0];
-                        missingSigma2[i] = (int)Math.Round(M11 * (M11 * (1d / M12 + p1 * (1d - p1) / NAll + p2 * (1d - p2) / NAll))) + dpCorMultis[i, i, 0];
+                        missingSigma2[i] = (M11 * (M11 * (1d / M12 + p1 * (1d - p1) / NAll + p2 * (1d - p2) / NAll))) + (double)dpCorMultis[i, i, 0];
                         missingCounts[j] = (int)Math.Round(M22) - dpCorMultis[j, j, 0];
-                        missingSigma2[j] = (int)Math.Round(M22 * (M22 * (1d / M12 + p1 * (1d - p1) / NAll + p2 * (1d - p2) / NAll))) + dpCorMultis[j, j, 0];
+                        missingSigma2[j] = (M22 * (M22 * (1d / M12 + p1 * (1d - p1) / NAll + p2 * (1d - p2) / NAll))) + (double)dpCorMultis[j, j, 0];
                     }
                     missingPairs[i] = rangeNames[j];
                     missingPairs[j] = rangeNames[i];
@@ -2473,14 +2512,14 @@ foreach (string row in rows)
                 else //No matches, use max
                 {
                     missingCounts[i] = 0;
-                    missingSigma2[i] = 0;
+                    missingSigma2[i] = 0d;
                     missingPairs[i] = "None";
                 }
             }
             for (int i = 0; i < N; i++)
                 missingCounts[N] += missingCounts[i];
         }       
-        public void returnPCorMissingCounts(int i, int j, ref int MissingCountsi, ref int MissingSigma2i, ref int MissingCountsj, ref int MissingSigma2j, ref string MissingPairsi, ref string MissingPairsj)
+        public void returnPCorMissingCounts(int i, int j, ref int MissingCountsi, ref double MissingSigma2i, ref int MissingCountsj, ref double MissingSigma2j, ref string MissingPairsi, ref string MissingPairsj)
         {
             double M12 = (double)dpCorMultis[i, j, 0] + (double)dpCorMultis[j, i, 0];
             double M12prime = (double)dpCorMultis[i, j, DPMax + 1] + (double)dpCorMultis[j, i, DPMax + 1];
@@ -2491,16 +2530,16 @@ foreach (string row in rows)
             if (dpCorMultis[i, i, DPMax + 1] == 0 || dpCorMultis[j, j, DPMax + 1] == 0 || (int)M12 == 0 || (int)M12prime == 0)
             {
                 MissingCountsi = 0;
-                MissingSigma2i = 0;
+                MissingSigma2i = 0d;
                 MissingCountsj = 0;
-                MissingSigma2j = 0;
+                MissingSigma2j = 0d;
             }
             else
             {
                 MissingCountsi = (int)Math.Round(M11) - dpCorMultis[i, i, 0];
-                MissingSigma2i = (int)Math.Round(M11 * (M11 * (1d / M12 + 1d / M12prime + 1d / M22prime))) + dpCorMultis[i, i, 0];
+                MissingSigma2i = (M11 * (M11 * (1d / M12 + 1d / M12prime + 1d / M22prime))) + (double)dpCorMultis[i, i, 0];
                 MissingCountsj = (int)Math.Round(M22) - dpCorMultis[j, j, 0];
-                MissingSigma2j = (int)Math.Round(M22 * (M22 * (1d / M12 + 1d / M12prime + 1d / M11prime))) + dpCorMultis[j, j, 0];
+                MissingSigma2j = (M22 * (M22 * (1d / M12 + 1d / M12prime + 1d / M11prime))) + (double)dpCorMultis[j, j, 0];
             }
             MissingPairsi = rangeNames[j];
             MissingPairsj = rangeNames[i];
@@ -2569,13 +2608,13 @@ foreach (string row in rows)
                 }
             }
         }
-        public int getMissing3s(int i, int j, int k, ref int sigma2)
+        public int getMissing3s(int i, int j, int k, ref double sigma2)
         {
             double M12 = (double)dpCorMultis[i, j, 0] + (double)dpCorMultis[j, i, 0];
             double M13 = (double)dpCorMultis[i, k, 0] + (double)dpCorMultis[k, i, 0];
             double M23 = (double)dpCorMultis[j, k, 0] + (double)dpCorMultis[k, j, 0];
             double M11 = 0.5d * M12 * M13 / M23;
-            sigma2 = (int)Math.Round(M11 * (M11 * (1d / M12 + 1d / M13 + 1d / M23))) + dpCorMultis[i, i, 0];
+            sigma2 = (M11 * (M11 * (1d / M12 + 1d / M13 + 1d / M23))) + (double)dpCorMultis[i, i, 0];
             return (int)Math.Round(M11) - dpCorMultis[i, i, 0];
         }
         public double getIonFraction(string ion)

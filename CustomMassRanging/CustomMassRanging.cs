@@ -782,8 +782,8 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
             }
             else
             {
-                range.Missing = 0;
-                range.MissingSigma2 = 0;
+                range.Missing = 0d;
+                range.MissingSigma2 = 0d;
             }
         }
 
@@ -1005,7 +1005,7 @@ internal partial class CustomMassRanging : BasicCustomAnalysisBase<CustomMassRan
                                 tailTotal += (float)Math.Exp(a + b * Math.Sqrt(x)) - (float)bgd;
                             range.Tail = tailTotal;
                             range.Net += tailTotal;
-                            range.BgdSigma2 += Parameters.DTailEstimateUncertainty * tailTotal * Parameters.DTailEstimateUncertainty * tailTotal;
+                            range.BgdSigma2 += Parameters.DTailEstimateUncertainty * (double)tailTotal * Parameters.DTailEstimateUncertainty * tailTotal;
                             break;
                         }
                     }

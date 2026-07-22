@@ -45,7 +45,7 @@ namespace CustomMassRanging
 
             //Quarter ranges have larger background sigma for error propogation
             if (scheme == RangeScheme.Quarter)
-                BgdSigma2 = 2 * Bgd;
+                BgdSigma2 = 2d * Bgd;
             else
                 BgdSigma2 = Bgd;
         }
