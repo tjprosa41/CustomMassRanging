@@ -1631,11 +1631,34 @@ foreach (string row in rows)
             if (Sip[0] >= 0 && Sip[1] >= 0 && Sip[2] >= 0)
                 yesSip = true;
 
-            /*
+            //Really only care about Sipp, but Sip will show differences due to any overlaps (like SiH+)
+            // Do deadtime corrections:
+            //      1) 3 or more isotopes of same chemical/molecular species and same charge state
+            //            M11 = p12N = ½ M12 M13/ M23 = ½(2p1p2N)(2p1p3N)/ (2p2p3N),
+            //            M11 = ½ M12 M13/ M23,
+            //            M22 = ½ M12 M23/ M13,
+            //            Mii = ½ M1i M2i/ M12,
+            //            sigmaMii = Mii√(1 / M12 + 1 / M13 + 1 / M23) for i = 1 or 2,
+            //            sigmaMii = Mii√(1 / M12 + 1 / M1i + 1 / M2i).
+            //      2) 2 isotopes of same chemical/molecular species and same charge state
+            //            pi based on all data (rather than pi based on natural abundance)
+            //            better to use non-background corrected p's
+            //            M11 = ½ M12 p1/p2,
+            //            M22 = ½ M12 p2/p1,
+            //            sigmaMii = Mii√(1/M12 + p1(1-p1)/Nall + p2(1-p2)/Nall)
+            //      3) 2 charge states of same chemical/molecular species
+            //            M11 = ¼ M12 M12’/ M22’,
+            //            M22 = ¼ M12 M12’/ M11’,
+            //            sigmaMii = Mii√(1/M12 + 1/M12' + 1/Mjj')
+            //      Ignore the rest
+            //
             if (yesSip || yesSipp)
             {
 
-                s += $"{"",20}";
+                s += $" 14.5-Si/15.0-Si = {(double)(totIonCounts[Sipp[1]] + missingCounts[Sipp[1]] - rangeBgd[Sipp[1]]) / (double)(totIonCounts[Sipp[2]] + missingCounts[Sipp[2]] - rangeBgd[Sipp[2]]),8:N3}\n";
+                s += $" M12/M13 =         {(double)(dpCorMultis[Sipp[0], Sipp[1], 0] + dpCorMultis[Sipp[1], Sipp[0], 0]) / (double)(dpCorMultis[Sipp[0], Sipp[2], 0] + dpCorMultis[Sipp[2], Sipp[0], 0]),8:N3}\n";
+                s += $" PsM12/PsM13 =     {(double)(dpCorMultis[Sipp[0], Sipp[1], 1] + dpCorMultis[Sipp[1], Sipp[0], 1]) / (double)(dpCorMultis[Sipp[0], Sipp[2], 1] + dpCorMultis[Sipp[2], Sipp[0], 1]),8:N3}\n";
+                s += $"{"",30}";
                 if (yesSipp)
                     for (int i = 0; i < 3; i++)
                         s += $"{rangeNames[Sipp[i]],13}";
@@ -1644,7 +1667,7 @@ foreach (string row in rows)
                         s += $"{rangeNames[Sip[i]],13}";
                 s += "\n";
 
-                s += $"{"Uncorr. Cts.:",20}";
+                s += $"{"Uncorr. Cts.:",30}";
                 if (yesSipp)
                     for (int i = 0; i < 3; i++)
                         s += $"{multiIonTrueCounts[Sipp[i], 1],13:N0}";
@@ -1653,77 +1676,7 @@ foreach (string row in rows)
                         s += $"{multiIonTrueCounts[Sip[i], 1],13:N0}";
                 s += $"\n";
 
-                s += $"{"Missing (by pairs):",20}";
-                if (yesSipp)
-                    for (int i = 0; i < 3; i++)
-                        s += $"{missingCounts[Sipp[i]],13:N0}";
-                if (yesSip)
-                    for (int i = 0; i < 3; i++)
-                        s += $"{missingCounts[Sip[i]],13:N0}";
-                s += $"\n";
-
-                s += $"{"Missing (by 3s):",20}";
-                double[] AA = new double[3] { -1, -1, -1 };
-                if (yesSipp)
-                {
-                    if (dpCorMultis[Sipp[1], Sipp[2], 0] + dpCorMultis[Sipp[2], Sipp[1], 0] > 0)
-                        AA[0] = 0.5d * (double)(dpCorMultis[Sipp[0], Sipp[1], 0] + dpCorMultis[Sipp[1], Sipp[0], 0])
-                        * (double)(dpCorMultis[Sipp[0], Sipp[2], 0] + dpCorMultis[Sipp[2], Sipp[0], 0])
-                        / (double)(dpCorMultis[Sipp[1], Sipp[2], 0] + dpCorMultis[Sipp[2], Sipp[1], 0]);
-                    else
-                        AA[0] = 0;
-                    if (dpCorMultis[Sipp[0], Sipp[2], 0] + dpCorMultis[Sipp[2], Sipp[0], 0] > 0)
-                        AA[1] = 0.5d * (double)(dpCorMultis[Sipp[0], Sipp[1], 0] + dpCorMultis[Sipp[1], Sipp[0], 0])
-                            * (double)(dpCorMultis[Sipp[1], Sipp[2], 0] + dpCorMultis[Sipp[2], Sipp[1], 0])
-                            / (double)(dpCorMultis[Sipp[0], Sipp[2], 0] + dpCorMultis[Sipp[2], Sipp[0], 0]);
-                    else
-                        AA[1] = 0;
-                    if (dpCorMultis[Sipp[0], Sipp[1], 0] + dpCorMultis[Sipp[1], Sipp[0], 0] > 0)
-                        AA[2] = 0.5d * (double)(dpCorMultis[Sipp[2], Sipp[1], 0] + dpCorMultis[Sipp[1], Sipp[2], 0])
-                            * (double)(dpCorMultis[Sipp[0], Sipp[2], 0] + dpCorMultis[Sipp[2], Sipp[0], 0])
-                            / (double)(dpCorMultis[Sipp[0], Sipp[1], 0] + dpCorMultis[Sipp[1], Sipp[0], 0]);
-                    else
-                        AA[2] = 0;
-                }
-
-                double[] A = new double[3] { -1, -1, -1 };
-                if (yesSip)
-                {
-                    if (dpCorMultis[Sip[1], Sip[2], 0] + dpCorMultis[Sip[2], Sip[1], 0] > 0)
-                        A[0] = 0.5d * (double)(dpCorMultis[Sip[0], Sip[1], 0] + dpCorMultis[Sip[1], Sip[0], 0])
-                            * (double)(dpCorMultis[Sip[0], Sip[2], 0] + dpCorMultis[Sip[2], Sip[0], 0])
-                            / (double)(dpCorMultis[Sip[1], Sip[2], 0] + dpCorMultis[Sip[2], Sip[1], 0]);
-                    else
-                        A[0] = 0;
-                    if (dpCorMultis[Sip[0], Sip[2], 0] + dpCorMultis[Sip[2], Sip[0], 0] > 0)
-                        A[1] = 0.5d * (double)(dpCorMultis[Sip[0], Sip[1], 0] + dpCorMultis[Sip[1], Sip[0], 0])
-                            * (double)(dpCorMultis[Sip[1], Sip[2], 0] + dpCorMultis[Sip[2], Sip[1], 0])
-                            / (double)(dpCorMultis[Sip[0], Sip[2], 0] + dpCorMultis[Sip[2], Sip[0], 0]);
-                    else
-                        A[1] = 0;
-                    if (dpCorMultis[Sip[0], Sip[1], 0] + dpCorMultis[Sip[1], Sip[0], 0] > 0)
-                        A[2] = 0.5d * (double)(dpCorMultis[Sip[2], Sip[1], 0] + dpCorMultis[Sip[1], Sip[2], 0])
-                            * (double)(dpCorMultis[Sip[0], Sip[2], 0] + dpCorMultis[Sip[2], Sip[0], 0])
-                            / (double)(dpCorMultis[Sip[0], Sip[1], 0] + dpCorMultis[Sip[1], Sip[0], 0]);
-                    else
-                        A[2] = 0;
-                    if (dpCorMultis[Sip[0], Sip[1], 0] + dpCorMultis[Sip[1], Sip[0], 0] > 0)
-                        A[2] = 0.5d * (double)(dpCorMultis[Sip[2], Sip[1], 0] + dpCorMultis[Sip[1], Sip[2], 0])
-                            * (double)(dpCorMultis[Sip[0], Sip[2], 0] + dpCorMultis[Sip[2], Sip[0], 0])
-                            / (double)(dpCorMultis[Sip[0], Sip[1], 0] + dpCorMultis[Sip[1], Sip[0], 0]);
-                    else
-                        A[2] = 0;
-                }
-
-                if (yesSipp)
-                    for (int i = 0; i < 3; i++)
-                        s += $"{(int)(AA[i] + 0.5d) - dpCorMultis[Sipp[i], Sipp[i], 0],13:N0}";
-                if (yesSip)
-                    for (int i = 0; i < 3; i++)
-                        s += $"{(int)(A[i] + 0.5d) - dpCorMultis[Sip[i], Sip[i], 0],13:N0}";
-                s += $"\n";
-
-                s += $"{"COR Cts.:",20}";
+                s += $"{"COR Cts.:",30}";
                 if (yesSipp)
                     for (int i = 0; i < 3; i++)
                         s += $"{multiIonTrueCounts[Sipp[i], 0],13:N0}";
@@ -1732,7 +1685,7 @@ foreach (string row in rows)
                         s += $"{multiIonTrueCounts[Sip[i], 0],13:N0}";
                 s += $"\n";
 
-                s += $"{"All Cts.:",20}";
+                s += $"{"All Cts.:",30}";
                 if (yesSipp)
                     for (int i = 0; i < 3; i++)
                         s += $"{totIonCounts[Sipp[i]],13:N0}";
@@ -1741,7 +1694,7 @@ foreach (string row in rows)
                         s += $"{totIonCounts[Sip[i]],13:N0}";
                 s += $"\n";
 
-                s += $"{"All Bgd Cts.:",20}";
+                s += $"{"All Bgd Cts.:",30}";
                 if (yesSipp)
                     for (int i = 0; i < 3; i++)
                         s += $"{rangeBgd[Sipp[i]],13:N0}";
@@ -1750,7 +1703,161 @@ foreach (string row in rows)
                         s += $"{rangeBgd[Sip[i]],13:N0}";
                 s += $"\n";
 
-                s += $"{"Uncor Frac.:",20}";
+                s += $"{"Missing (by 3s):",30}";
+                if (yesSipp)
+                    for (int i = 0; i < 3; i++)
+                        s += $"{missingCounts[Sipp[i]],13:N0}";
+                if (yesSip)
+                    for (int i = 0; i < 3; i++)
+                        s += $"{missingCounts[Sip[i]],13:N0}";
+                s += $"\n";
+
+                s += $"{"Sigma:",30}";
+                if (yesSipp)
+                    for (int i = 0; i < 3; i++)
+                        s += $"{(int)Math.Round(Math.Sqrt((double)missingSigma2[Sipp[i]])),13:N0}";
+                if (yesSip)
+                    for (int i = 0; i < 3; i++)
+                        s += $"{(int)Math.Round(Math.Sqrt((double)missingSigma2[Sip[i]])),13:N0}";
+                s += $"\n";
+
+                s += $"{"Missing (by 2, nat. ab.):",30}";
+                double[] AA = new double[3] { -1, -1, -1 };
+                if (yesSipp)
+                {
+                    double Si28 = getIonFraction(rangeNames[Sipp[0]]);
+                    double Si29 = getIonFraction(rangeNames[Sipp[1]]);
+                    double Si30 = getIonFraction(rangeNames[Sipp[2]]);
+                    //            M11 = ½ M12 p1/p2,
+                    //            M22 = ½ M12 p2/p1,
+                    //            sigmaMii = Mii√(1/M12 + p1(1-p1)/Nall + p2(1-p2)/Nall)
+                    AA[0] = 0.5d * (double)(dpCorMultis[Sipp[0], Sipp[1], 0] + dpCorMultis[Sipp[1], Sipp[0], 0]) * Si28 / Si29;
+                    AA[1] = 0.5d * (double)(dpCorMultis[Sipp[0], Sipp[1], 0] + dpCorMultis[Sipp[1], Sipp[0], 0]) * Si29 / Si28;
+                    AA[2] = 0.5d * (double)(dpCorMultis[Sipp[2], Sipp[0], 0] + dpCorMultis[Sipp[0], Sipp[2], 0]) * Si30 / Si28;
+                }
+
+                double[] A = new double[3] { -1, -1, -1 };
+                if (yesSip)
+                {
+                    double Si28 = getIonFraction(rangeNames[Sip[0]]);
+                    double Si29 = getIonFraction(rangeNames[Sip[1]]);
+                    double Si30 = getIonFraction(rangeNames[Sip[2]]);
+                    //            M11 = ½ M12 p1/p2,
+                    //            M22 = ½ M12 p2/p1,
+                    //            sigmaMii = Mii√(1/M12 + p1(1-p1)/Nall + p2(1-p2)/Nall)
+                    A[0] = 0.5d * (double)(dpCorMultis[Sip[0], Sip[1], 0] + dpCorMultis[Sip[1], Sip[0], 0]) * Si28 / Si29;
+                    A[1] = 0.5d * (double)(dpCorMultis[Sip[0], Sip[1], 0] + dpCorMultis[Sip[1], Sip[0], 0]) * Si29 / Si28;
+                    A[2] = 0.5d * (double)(dpCorMultis[Sip[2], Sip[0], 0] + dpCorMultis[Sip[0], Sip[2], 0]) * Si30 / Si28;
+                }
+                if (yesSipp)
+                    for (int i = 0; i < 3; i++)
+                        s += $"{(int)(AA[i] + 0.5d) - dpCorMultis[Sipp[i], Sipp[i], 0],13:N0}";
+                if (yesSip)
+                    for (int i = 0; i < 3; i++)
+                        s += $"{(int)(A[i] + 0.5d) - dpCorMultis[Sip[i], Sip[i], 0],13:N0}";
+                s += $"\n";
+
+                s += $"{"Missing (by 2, measured):",30}";
+                if (yesSipp)
+                {
+                    double tot = (double)(totIonCounts[Sipp[0]] + totIonCounts[Sipp[1]] + totIonCounts[Sipp[2]]);
+                    double Si28 = (double)totIonCounts[Sipp[0]] / tot;
+                    double Si29 = (double)totIonCounts[Sipp[1]] / tot;
+                    double Si30 = (double)totIonCounts[Sipp[2]] / tot;
+                    //            M11 = ½ M12 p1/p2,
+                    //            M22 = ½ M12 p2/p1,
+                    //            sigmaMii = Mii√(1/M12 + p1(1-p1)/Nall + p2(1-p2)/Nall)
+                    AA[0] = 0.5d * (double)(dpCorMultis[Sipp[0], Sipp[1], 0] + dpCorMultis[Sipp[1], Sipp[0], 0]) * Si28 / Si29;
+                    AA[1] = 0.5d * (double)(dpCorMultis[Sipp[0], Sipp[1], 0] + dpCorMultis[Sipp[1], Sipp[0], 0]) * Si29 / Si28;
+                    AA[2] = 0.5d * (double)(dpCorMultis[Sipp[2], Sipp[0], 0] + dpCorMultis[Sipp[0], Sipp[2], 0]) * Si30 / Si28;
+                }
+                if (yesSip)
+                {
+                    double tot = (double)(totIonCounts[Sip[0]] + totIonCounts[Sip[1]] + totIonCounts[Sip[2]]);
+                    double Si28 = (double)totIonCounts[Sip[0]] / tot;
+                    double Si29 = (double)totIonCounts[Sip[1]] / tot;
+                    double Si30 = (double)totIonCounts[Sip[2]] / tot;
+                    //            M11 = ½ M12 p1/p2,
+                    //            M22 = ½ M12 p2/p1,
+                    //            sigmaMii = Mii√(1/M12 + p1(1-p1)/Nall + p2(1-p2)/Nall)
+                    A[0] = 0.5d * (double)(dpCorMultis[Sip[0], Sip[1], 0] + dpCorMultis[Sip[1], Sip[0], 0]) * Si28 / Si29;
+                    A[1] = 0.5d * (double)(dpCorMultis[Sip[0], Sip[1], 0] + dpCorMultis[Sip[1], Sip[0], 0]) * Si29 / Si28;
+                    A[2] = 0.5d * (double)(dpCorMultis[Sip[2], Sip[0], 0] + dpCorMultis[Sip[0], Sip[2], 0]) * Si30 / Si28;
+                }
+                if (yesSipp)
+                    for (int i = 0; i < 3; i++)
+                        s += $"{(int)(AA[i] + 0.5d) - dpCorMultis[Sipp[i], Sipp[i], 0],13:N0}";
+                if (yesSip)
+                    for (int i = 0; i < 3; i++)
+                        s += $"{(int)(A[i] + 0.5d) - dpCorMultis[Sip[i], Sip[i], 0],13:N0}";
+                s += $"\n";
+
+                s += $"{"Missing (by 2, pseudoCOR):",30}";
+                if (yesSipp)
+                {
+                    for (int Si = 0; Si < 3; Si++)
+                    {
+                        int i = Sipp[Si];
+                        bool found = false;
+                        int numerator = -1;
+                        int denominator = -1;
+                        returnCSRPair(i, ref found, ref numerator, ref denominator);
+                        if (found)
+                        {
+                            int j = -1;
+                            if (i == numerator)
+                                j = denominator;
+                            else
+                                j = numerator;
+                            int MissingCountsi = 0;
+                            int MissingCountsj = 0;
+                            int MissingSigma2i = 0;
+                            int MissingSigma2j = 0;
+                            string MissingPairsi = "";
+                            string MissingPairsj = "";
+                            returnPCorMissingCounts(i, j, ref MissingCountsi, ref MissingSigma2i, ref MissingCountsj, ref MissingSigma2j, ref MissingPairsi, ref MissingPairsj);
+                            s += $"{MissingCountsi,13:N0}";
+                        }
+                        else
+                        {
+                            s += $"{"NA",13}";
+                        }
+                    }
+                }
+                if (yesSip)
+                {
+                    for (int Si = 0; Si < 3; Si++)
+                    {
+                        int i = Sip[Si];
+                        bool found = false;
+                        int numerator = -1;
+                        int denominator = -1;
+                        returnCSRPair(i, ref found, ref numerator, ref denominator);
+                        if (found)
+                        {
+                            int j = -1;
+                            if (i == numerator)
+                                j = denominator;
+                            else
+                                j = numerator;
+                            int MissingCountsi = 0;
+                            int MissingCountsj = 0;
+                            int MissingSigma2i = 0;
+                            int MissingSigma2j = 0;
+                            string MissingPairsi = "";
+                            string MissingPairsj = "";
+                            returnPCorMissingCounts(i, j, ref MissingCountsi, ref MissingSigma2i, ref MissingCountsj, ref MissingSigma2j, ref MissingPairsi, ref MissingPairsj);
+                            s += $"{MissingCountsi,13:N0}";
+                        }
+                        else
+                        {
+                            s += $"{"NA",13}";
+                        }
+                    }
+                }
+                s += $"\n";
+
+                s += $"{"Uncor Frac.:",30}";
                 if (yesSipp)
                 {
                     int total = 0;
@@ -1769,7 +1876,7 @@ foreach (string row in rows)
                 }
                 s += $"\n";
 
-                s += $"{"COR Raw Frac.:",20}";
+                s += $"{"COR Frac. Raw:",30}";
                 if (yesSipp)
                 {
                     int total = 0;
@@ -1788,7 +1895,7 @@ foreach (string row in rows)
                 }
                 s += $"\n";
 
-                s += $"{"COR Frac. Pairs:",20}";
+                s += $"{"COR Frac. by 3s:",30}";
                 if (yesSipp)
                 {
                     int total = 0;
@@ -1807,7 +1914,7 @@ foreach (string row in rows)
                 }
                 s += $"\n";
 
-                s += $"{"All Frac. Pairs:",20}";
+                s += $"{"All Frac. by 3s:",30}";
                 if (yesSipp)
                 {
                     int total = 0;
@@ -1826,7 +1933,8 @@ foreach (string row in rows)
                 }
                 s += $"\n";
 
-                s += $"{"COR Frac. 3s:",20}";
+                /*
+                s += $"{"COR Frac. by 2, meas.:",30}";
                 if (yesSipp)
                 {
                     int total = 0;
@@ -1844,8 +1952,9 @@ foreach (string row in rows)
                         s += $"{(double)(multiIonTrueCounts[Sip[i], 0] + 2 * (int)(A[i] + 0.5d)) / (double)total,13:P2}";
                 }
                 s += $"\n";
+                */
 
-                s += $"{"All Frac. 3s:",20}";
+                s += $"{"All Frac. by 2, meas.:",30}";
                 if (yesSipp)
                 {
                     int total = 0;
@@ -1862,9 +1971,10 @@ foreach (string row in rows)
                     for (int i = 0; i < 3; i++)
                         s += $"{(double)(totIonCounts[Sip[i]] + (int)(A[i] + 0.5d) - rangeBgd[Sip[i]]) / (double)total,13:P2}";
                 }
-                s += $"\n";
+                s += $"\n\n";
 
-                s += $"{"All Frac. 3s Sigma:",20}";
+                /*
+                s += $"{"All Frac. 3s Sigma:",30}";
                 if (yesSipp)
                 {
                     int totalN = 0;
@@ -1903,9 +2013,9 @@ foreach (string row in rows)
                         s += $"{sigma,13:P2}";
                     }
                 }
-                s += $"\n\n";
+                s += $"\n";
+                */
             }
-            */
 
             s += "Pseudo-Based Correction Validation (missing counts corrected, but not background corrected):\n";
             s += "Pseudo multis possess the Pi for correlated events unaffected by deadtime, but may not have sufficient counting statistics.\n";
@@ -1914,7 +2024,7 @@ foreach (string row in rows)
                 s += $"{rangeNames[i],13}";
             s += $"\n";
             
-            s += $"{"CSR:",15}";
+            s += $"{"CSRall:",15}";
             for (int i = 0; i < N; i++)
             {
                 bool found = false;
